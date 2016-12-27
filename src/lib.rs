@@ -271,6 +271,7 @@ pub trait Payload {
     fn build(&mut self, buffer: &mut [u8]);
 }
 
+#[derive(Clone)]
 pub struct BasicPayload<'a> {
     offset: usize,
     payload: &'a [u8],

@@ -15,7 +15,7 @@ pub trait Ipv4Payload: Payload {
     fn next_level_protocol(&self) -> IpNextHeaderProtocol;
 }
 
-
+#[derive(Clone)]
 pub struct BasicIpv4Payload<'a> {
     next_level_protocol: IpNextHeaderProtocol,
     payload: BasicPayload<'a>,

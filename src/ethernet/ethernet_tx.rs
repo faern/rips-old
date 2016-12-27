@@ -13,6 +13,7 @@ pub trait EthernetPayload: Payload {
 /// Basic reference implementation of an `EthernetPayload`.
 /// Can be used to construct Ethernet frames with arbitrary payload from a
 /// vector.
+#[derive(Clone)]
 pub struct BasicEthernetPayload<'a> {
     ether_type: EtherType,
     payload: BasicPayload<'a>,

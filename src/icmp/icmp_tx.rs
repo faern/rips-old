@@ -15,6 +15,7 @@ pub trait IcmpPayload: Payload {
     fn build_header(&self, header: &mut MutableIcmpPacket);
 }
 
+#[derive(Clone)]
 pub struct BasicIcmpPayload<'a> {
     icmp_type: IcmpType,
     icmp_code: IcmpCode,
