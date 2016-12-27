@@ -8,7 +8,7 @@ great functionality, before the 0.1.0 release.**
 **I will be at 33C3 if you are interested in this project and want to know
 more!**
 
-[`rips`](https://github.com/faern/librips) is a TCP/IP stack implemented in
+[`rips`](https://github.com/faern/rips) is a TCP/IP stack implemented in
 Rust and backed by [`libpnet`](https://github.com/libpnet/libpnet) for its
 raw ethernet access.
 
@@ -22,8 +22,8 @@ Most of this is implemented from observations of how other stacks seem to
 work, I have not studied any other implementations in detail.
 
 Linux and OS X builds:
-[![Build Status](https://api.travis-ci.org/faern/librips.
-svg?branch=master)](https://travis-ci.org/faern/librips)
+[![Build Status](https://api.travis-ci.org/faern/rips.
+svg?branch=master)](https://travis-ci.org/faern/rips)
 
 - [rnetcat](https://github.com/faern/rnetcat) - A Netcat like program based
 on rips.
