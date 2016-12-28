@@ -147,7 +147,7 @@ impl<P: Ipv4Payload> Payload for Ipv4Builder<P> {
     }
 
     fn build(&mut self, buffer: &mut [u8]) {
-        let mut pkg = MutableIpv4Packet::new(buffer).unwrap();
+        let mut pkg = MutableIpv4Packet::new(buffer).expect("Too small buffer given");
         pkg.set_version(4);
         pkg.set_dscp(0); // https://en.wikipedia.org/wiki/Differentiated_services
         pkg.set_ecn(0); // https://en.wikipedia.org/wiki/Explicit_Congestion_Notification
