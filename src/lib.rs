@@ -218,7 +218,7 @@ pub mod testing;
 mod stack;
 
 pub use pnet::util::MacAddr;
-pub use stack::{NetworkStack, StackError, StackResult, TxImpl};
+pub use stack::{NetworkStack, StackResult, TxImpl};
 
 pub static DEFAULT_BUFFER_SIZE: usize = 1024 * 128;
 

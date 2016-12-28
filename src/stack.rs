@@ -1,4 +1,5 @@
 use ::{EthernetChannel, Interface, RoutingTable, TxError, TxResult, Tx, Payload};
+use StackError;
 use ::arp::{self, ArpRequestTx, ArpReplyTx, ArpTable};
 use ::ethernet::{EthernetRx, EthernetTxImpl};
 use ::icmp::{self, IcmpTx};
@@ -30,41 +31,6 @@ use util;
 pub static DEFAULT_MTU: usize = 1500;
 pub static LOCAL_PORT_RANGE_START: u16 = 32768;
 pub static LOCAL_PORT_RANGE_END: u16 = 61000;
-
-/// Error returned upon invalid usage or state of the stack.
-#[derive(Debug)]
-pub enum StackError {
-    IllegalArgument,
-    NoRouteToHost,
-    InvalidInterface,
-    TxError(TxError),
-    IoError(io::Error),
-}
-
-impl From<TxError> for StackError {
-    fn from(e: TxError) -> StackError {
-        StackError::TxError(e)
-    }
-}
-
-impl From<io::Error> for StackError {
-    fn from(e: io::Error) -> StackError {
-        StackError::IoError(e)
-    }
-}
-
-impl From<StackError> for io::Error {
-    fn from(e: StackError) -> io::Error {
-        let other = |msg| io::Error::new(io::ErrorKind::Other, msg);
-        match e {
-            StackError::IllegalArgument => other("Illegal argument".to_owned()),
-            StackError::NoRouteToHost => other("No route to host".to_owned()),
-            StackError::InvalidInterface => other("Invalid interface".to_owned()),
-            StackError::IoError(io_e) => io_e,
-            StackError::TxError(txe) => txe.into(),
-        }
-    }
-}
 
 pub type StackResult<T> = Result<T, StackError>;
 

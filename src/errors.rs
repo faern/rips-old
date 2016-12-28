@@ -123,3 +123,73 @@ impl Error for RxError {
 
     // fn cause(&self) -> Option<&Error> {}
 }
+
+
+/// Error returned upon invalid usage or state of the stack.
+#[derive(Debug)]
+pub enum StackError {
+    IllegalArgument,
+    NoRouteToHost,
+    InvalidInterface,
+    TxError(TxError),
+    IoError(io::Error),
+}
+
+impl From<TxError> for StackError {
+    fn from(e: TxError) -> StackError {
+        StackError::TxError(e)
+    }
+}
+
+impl From<io::Error> for StackError {
+    fn from(e: io::Error) -> StackError {
+        StackError::IoError(e)
+    }
+}
+
+impl From<StackError> for io::Error {
+    fn from(e: StackError) -> io::Error {
+        let other = |msg| io::Error::new(io::ErrorKind::Other, msg);
+        match e {
+            StackError::IllegalArgument => other("Illegal argument".to_owned()),
+            StackError::NoRouteToHost => other("No route to host".to_owned()),
+            StackError::InvalidInterface => other("Invalid interface".to_owned()),
+            StackError::IoError(io_e) => io_e,
+            StackError::TxError(txe) => txe.into(),
+        }
+    }
+}
+
+impl fmt::Display for StackError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        use StackError::*;
+        fmt.write_str(self.description())?;
+        match *self {
+            TxError(ref e) => fmt.write_str(&format!(": {}", e)),
+            IoError(ref e) => fmt.write_str(&format!(": {}", e)),
+            _ => Ok(()),
+        }
+    }
+}
+
+impl Error for StackError {
+    fn description(&self) -> &str {
+        use StackError::*;
+        match *self {
+            IllegalArgument => "Illegal argument",
+            NoRouteToHost => "No route to host",
+            InvalidInterface => "Invalid interface",
+            TxError(..) => "Transmission error",
+            IoError(..) => "IO error",
+        }
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        use StackError::*;
+        match *self {
+            TxError(ref e) => Some(e),
+            IoError(ref e) => Some(e),
+            _ => None,
+        }
+    }
+}
