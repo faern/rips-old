@@ -23,7 +23,6 @@ pub struct BasicIpv4Payload<'a> {
 
 impl<'a> BasicIpv4Payload<'a> {
     pub fn new(next_level_protocol: IpNextHeaderProtocol, payload: &'a [u8]) -> Self {
-        assert!(payload.len() <= ::std::u16::MAX as usize);
         BasicIpv4Payload {
             next_level_protocol: next_level_protocol,
             payload: BasicPayload::new(payload),
@@ -119,16 +118,19 @@ pub struct Ipv4Builder<P: Ipv4Payload> {
     offset: usize,
     identification: u16,
     payload: P,
+    payload_len: usize,
 }
 
 impl<P: Ipv4Payload> Ipv4Builder<P> {
     pub fn new(src: Ipv4Addr, dst: Ipv4Addr, identification: u16, payload: P) -> Self {
+        let payload_len = payload.len();
         Ipv4Builder {
             src: src,
             dst: dst,
             offset: 0,
             identification: identification,
             payload: payload,
+            payload_len: payload_len,
         }
     }
 }
@@ -145,7 +147,6 @@ impl<P: Ipv4Payload> Payload for Ipv4Builder<P> {
     }
 
     fn build(&mut self, buffer: &mut [u8]) {
-        assert!(buffer.len() <= ::std::u16::MAX as usize);
         let mut pkg = MutableIpv4Packet::new(buffer).unwrap();
         pkg.set_version(4);
         pkg.set_dscp(0); // https://en.wikipedia.org/wiki/Differentiated_services
@@ -158,7 +159,7 @@ impl<P: Ipv4Payload> Payload for Ipv4Builder<P> {
         pkg.set_destination(self.dst);
         pkg.set_fragment_offset((self.offset / 8) as u16);
 
-        let bytes_remaining = self.payload.len() - self.offset;
+        let bytes_remaining = self.payload_len - self.offset;
         let bytes_max = pkg.payload().len();
         let payload_size = if bytes_remaining <= bytes_max {
             pkg.set_flags(NO_FLAGS);
