@@ -39,6 +39,13 @@ macro_rules! bench_to_send {
 }
 
 #[bench]
+fn newbench(b: &mut Bencher) {
+    let (stack, _, _, _) = testing::dummy_stack();
+    let mut socket = rips_socket(stack);
+    b.iter(|| socket.send_to(&[0], *DST));
+}
+
+#[bench]
 fn dummy_lan_63k(b: &mut Bencher) {
     bench_to_send!(b, rips_socket(testing::dummy_stack().0), BUF_63K, *DST);
 }
