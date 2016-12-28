@@ -90,6 +90,7 @@ impl<'a> Payload for UdpBuilder<'a> {
 
 #[cfg(test)]
 mod tests {
+    use Payload;
     use pnet::packet::Packet;
     use pnet::packet::udp::UdpPacket;
     use std::net::{Ipv4Addr, SocketAddrV4};
