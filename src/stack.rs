@@ -24,7 +24,7 @@ use std::io;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
 use std::sync::{Arc, Mutex, RwLock};
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::thread;
+use std::thread::{self, JoinHandle};
 use udp::{self, UdpTx};
 use util;
 
@@ -73,18 +73,35 @@ struct StackInterfaceThread {
     arp_table: ArpTable,
 }
 
+struct StackInterfaceThreadHandle {
+    pub handle: Option<JoinHandle<()>>,
+    pub tx: Sender<StackInterfaceMsg>,
+}
+
+impl Drop for StackInterfaceThreadHandle {
+    fn drop(&mut self) {
+        if let Err(..) = self.tx.send(StackInterfaceMsg::Shutdown) {
+            error!("Unable to send shutdown command to interface thread");
+        }
+        self.handle.take().unwrap().join().unwrap();
+    }
+}
+
 impl StackInterfaceThread {
-    pub fn spawn(data: Arc<StackInterfaceData>, arp_table: ArpTable) -> Sender<StackInterfaceMsg> {
-        let (thread_handle, rx) = mpsc::channel();
+    pub fn spawn(data: Arc<StackInterfaceData>, arp_table: ArpTable) -> StackInterfaceThreadHandle {
+        let (thread_tx, rx) = mpsc::channel();
         let stack_interface_thread = StackInterfaceThread {
             queue: rx,
             data: data,
             arp_table: arp_table,
         };
-        thread::spawn(move || {
+        let thread_handle = thread::spawn(move || {
             stack_interface_thread.run();
         });
-        thread_handle
+        StackInterfaceThreadHandle {
+            handle: Some(thread_handle),
+            tx: thread_tx,
+        }
     }
 
     fn run(mut self) {
@@ -137,7 +154,7 @@ struct Ipv4Data {
 pub struct StackInterface {
     data: Arc<StackInterfaceData>,
     mtu: usize,
-    thread_handle: Sender<StackInterfaceMsg>,
+    _thread_handle: StackInterfaceThreadHandle,
     arp_table: ArpTable,
     ipv4_datas: HashMap<Ipv4Addr, Ipv4Data>,
     ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
@@ -158,7 +175,7 @@ impl StackInterface {
         let thread_handle = StackInterfaceThread::spawn(stack_interface_data.clone(),
                                                         arp_table.clone());
 
-        let arp_rx = arp_table.arp_rx(thread_handle.clone());
+        let arp_rx = arp_table.arp_rx(thread_handle.tx.clone());
 
         let ipv4_listeners = Arc::new(Mutex::new(HashMap::new()));
         let ipv4_rx = ipv4::Ipv4Rx::new(ipv4_listeners.clone());
@@ -170,7 +187,7 @@ impl StackInterface {
         StackInterface {
             data: stack_interface_data,
             mtu: DEFAULT_MTU,
-            thread_handle: thread_handle,
+            _thread_handle: thread_handle,
             arp_table: arp_table,
             ipv4_datas: HashMap::new(),
             ipv4_listeners: ipv4_listeners,
@@ -287,9 +304,6 @@ impl StackInterface {
 impl Drop for StackInterface {
     fn drop(&mut self) {
         self.data.tx.lock().unwrap().inc();
-        if let Err(..) = self.thread_handle.send(StackInterfaceMsg::Shutdown) {
-            error!("Unable to send shutdown command to interface thread");
-        }
     }
 }
 
