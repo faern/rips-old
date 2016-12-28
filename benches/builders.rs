@@ -13,7 +13,7 @@ use rips::Payload;
 use rips::ethernet::{EthernetBuilder, BasicEthernetPayload};
 use rips::ipv4::{Ipv4Builder, BasicIpv4Payload};
 use rips::udp::UdpBuilder;
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, SocketAddrV4};
 use test::Bencher;
 
 lazy_static! {
@@ -26,21 +26,28 @@ lazy_static! {
 
 #[bench]
 fn ethernet(b: &mut Bencher) {
-    let mut builder = EthernetBuilder::new(*MAC, *MAC, (*ETHERNET_PAYLOAD).clone());
-    let mut buffer = vec![0; builder.len()];
-    b.iter(|| builder.build(&mut buffer));
+    let mut buffer = vec![0; 1024];
+    b.iter(|| {
+        let mut builder = EthernetBuilder::new(*MAC, *MAC, (*ETHERNET_PAYLOAD).clone());
+        builder.build(&mut buffer)
+    });
 }
 
 #[bench]
 fn ipv4(b: &mut Bencher) {
-    let mut builder = Ipv4Builder::new(*IP, *IP, 0, (*IPV4_PAYLOAD).clone());
-    let mut buffer = vec![0; builder.len()];
-    b.iter(|| builder.build(&mut buffer));
+    let mut buffer = vec![0; 1024];
+    b.iter(|| {
+        let mut builder = Ipv4Builder::new(*IP, *IP, 0, (*IPV4_PAYLOAD).clone());
+        builder.build(&mut buffer)
+    });
 }
 
 #[bench]
 fn udp(b: &mut Bencher) {
-    let mut builder = UdpBuilder::new(*IP, *IP, 0, 0, &[]);
-    let mut buffer = vec![0; builder.len()];
-    b.iter(|| builder.build(&mut buffer));
+    let mut buffer = vec![0; 1024];
+    let socket_addr = SocketAddrV4::new(*IP, 0);
+    b.iter(|| {
+        let mut builder = UdpBuilder::new(socket_addr, socket_addr, &[]);
+        builder.build(&mut buffer)
+    });
 }
