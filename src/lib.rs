@@ -183,13 +183,14 @@ extern crate test;
 
 use pnet::datalink::{self, NetworkInterface};
 
-use std::cmp;
-
 #[macro_use]
 mod macros;
 
 mod errors;
 pub use errors::*;
+
+mod payload;
+pub use payload::{Payload, BasicPayload, HasPayload};
 
 pub mod rx;
 
@@ -257,64 +258,6 @@ pub type TxResult = Result<(), TxError>;
 /// Simple type definition for return type of `recv` on `*Rx` objects.
 pub type RxResult = Result<(), RxError>;
 
-
-/// Super trait to any payload. Represents any type that can become the payload
-/// of a packet.
-pub trait Payload {
-    /// Returns how many bytes this payload will occupy in total
-    fn len(&self) -> usize;
-
-    /// Construct this payload into the given `buffer`. If the buffer is
-    /// smaller than the length of this `Payload`, fill the entire `buffer`,
-    /// note how much data was used and put the remaining data into buffers
-    /// sent in on subsequent calls to `build`.
-    fn build(&mut self, buffer: &mut [u8]);
-}
-
-#[derive(Clone)]
-pub struct BasicPayload<'a> {
-    offset: usize,
-    payload: &'a [u8],
-}
-
-impl<'a> BasicPayload<'a> {
-    pub fn new(payload: &'a [u8]) -> Self {
-        BasicPayload {
-            offset: 0,
-            payload: payload,
-        }
-    }
-}
-
-impl<'a> Payload for BasicPayload<'a> {
-    fn len(&self) -> usize {
-        self.payload.len()
-    }
-
-    fn build(&mut self, buffer: &mut [u8]) {
-        let start = self.offset;
-        let end = cmp::min(start + buffer.len(), self.payload.len());
-        self.offset = end;
-        buffer[0..end - start].copy_from_slice(&self.payload[start..end]);
-    }
-}
-
-pub trait HasPayload {
-    fn get_payload(&self) -> &Payload;
-    fn get_payload_mut(&mut self) -> &mut Payload;
-}
-
-impl<T> Payload for T
-    where T: HasPayload
-{
-    fn len(&self) -> usize {
-        self.get_payload().len()
-    }
-
-    fn build(&mut self, buffer: &mut [u8]) {
-        self.get_payload_mut().build(buffer)
-    }
-}
 
 pub trait Tx {
     fn send<P: Payload>(&mut self, num_packets: usize, packet_size: usize, payload: P) -> TxResult;
