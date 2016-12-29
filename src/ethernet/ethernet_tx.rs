@@ -108,7 +108,7 @@ mod basic_ethernet_payload_tests {
 pub trait EthernetTx {
     fn src(&self) -> MacAddr;
     fn dst(&self) -> MacAddr;
-    fn send<P>(&mut self, packets: usize, size: usize, payload: P) -> TxResult
+    fn send<P>(&mut self, num_packets: usize, packet_size: usize, payload: P) -> TxResult
         where P: EthernetPayload;
 }
 
@@ -145,12 +145,12 @@ impl<T: Tx> EthernetTx for EthernetTxImpl<T> {
     /// will be sent. This is  usually not a problem since the IP layer has the
     /// length in the header and the extra bytes should thus not cause any
     /// trouble.
-    fn send<P>(&mut self, packets: usize, size: usize, payload: P) -> TxResult
+    fn send<P>(&mut self, num_packets: usize, packet_size: usize, payload: P) -> TxResult
         where P: EthernetPayload
     {
         let builder = EthernetBuilder::new(self.src, self.dst, payload);
-        let size_with_header = size + EthernetPacket::minimum_packet_size();
-        self.tx.send(packets, size_with_header, builder)
+        let size_with_header = packet_size + EthernetPacket::minimum_packet_size();
+        self.tx.send(num_packets, size_with_header, builder)
     }
 }
 
@@ -213,11 +213,11 @@ mod ethernet_tx_tests {
     }
 
     impl Tx for MockTx {
-        fn send<P>(&mut self, packets: usize, size: usize, mut payload: P) -> TxResult
+        fn send<P>(&mut self, num_packets: usize, packet_size: usize, mut payload: P) -> TxResult
             where P: Payload
         {
-            for _ in 0..packets {
-                let mut buffer = vec![0; size];
+            for _ in 0..num_packets {
+                let mut buffer = vec![0; packet_size];
                 payload.build(&mut buffer[..]);
                 self.chan
                     .send(buffer.into_boxed_slice())
