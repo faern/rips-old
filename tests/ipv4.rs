@@ -12,7 +12,7 @@ use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 use pnet::util::MacAddr;
 
-use rips::{rx, testing, NetworkStack, TxImpl};
+use rips::{rx, testing, NetworkStack, DatalinkTx};
 use rips::ethernet::{EthernetRx, EthernetTxImpl};
 use rips::ipv4::{BasicIpv4Listener, BasicIpv4Payload, Ipv4Rx, Ipv4Tx, Ipv4TxImpl};
 
@@ -50,9 +50,10 @@ fn simple_send() {
     assert_eq!(ip_pkg.payload(), [100, 99]);
 }
 
-fn prepare_ipv4_tx(dst_ip: Ipv4Addr,
-                   dst_mac: MacAddr)
-                   -> (NetworkStack, Ipv4TxImpl<EthernetTxImpl<TxImpl>>, Receiver<Box<[u8]>>) {
+fn prepare_ipv4_tx
+    (dst_ip: Ipv4Addr,
+     dst_mac: MacAddr)
+     -> (NetworkStack, Ipv4TxImpl<EthernetTxImpl<DatalinkTx>>, Receiver<Box<[u8]>>) {
     let (mut stack, interface, _, read_handle) = testing::dummy_stack();
 
     stack.interface(&interface).unwrap().arp_table().insert(dst_ip, dst_mac);

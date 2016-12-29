@@ -1,4 +1,4 @@
-use {NetworkStack, StackError, StackResult, TxImpl};
+use {NetworkStack, StackError, StackResult, DatalinkTx};
 use {TxError, TxResult};
 use ethernet::EthernetTxImpl;
 use ipv4::Ipv4TxImpl;
@@ -20,7 +20,7 @@ pub use self::udp_tx::{UdpBuilder, UdpTx};
 pub struct UdpSocket {
     socket_addr: SocketAddr,
     stack: Arc<Mutex<NetworkStack>>,
-    tx_cache: HashMap<SocketAddrV4, UdpTx<Ipv4TxImpl<EthernetTxImpl<TxImpl>>>>,
+    tx_cache: HashMap<SocketAddrV4, UdpTx<Ipv4TxImpl<EthernetTxImpl<DatalinkTx>>>>,
     rx: Option<UdpSocketReader>,
 }
 

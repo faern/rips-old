@@ -47,21 +47,21 @@ struct StackInterfaceData {
 }
 
 impl StackInterfaceData {
-    fn tx(&self) -> TxImpl {
+    fn tx(&self) -> DatalinkTx {
         let version = self.tx.lock().unwrap().version();
-        TxImpl::new(self.tx.clone(), version)
+        DatalinkTx::new(self.tx.clone(), version)
     }
 
-    pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTxImpl<TxImpl> {
+    pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTxImpl<DatalinkTx> {
         EthernetTxImpl::new(self.tx(), self.interface.mac, dst)
     }
 
-    pub fn arp_request_tx(&self) -> ArpRequestTx<EthernetTxImpl<TxImpl>> {
+    pub fn arp_request_tx(&self) -> ArpRequestTx<EthernetTxImpl<DatalinkTx>> {
         let dst_mac = MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
         ArpRequestTx::new(self.ethernet_tx(dst_mac))
     }
 
-    pub fn arp_reply_tx(&self) -> ArpReplyTx<EthernetTxImpl<TxImpl>> {
+    pub fn arp_reply_tx(&self) -> ArpReplyTx<EthernetTxImpl<DatalinkTx>> {
         let dst_mac = MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
         ArpReplyTx::new(self.ethernet_tx(dst_mac))
     }
@@ -198,11 +198,11 @@ impl StackInterface {
         &self.data.interface
     }
 
-    pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTxImpl<TxImpl> {
+    pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTxImpl<DatalinkTx> {
         self.data.ethernet_tx(dst)
     }
 
-    pub fn arp_request_tx(&self) -> ArpRequestTx<EthernetTxImpl<TxImpl>> {
+    pub fn arp_request_tx(&self) -> ArpRequestTx<EthernetTxImpl<DatalinkTx>> {
         self.data.arp_request_tx()
     }
 
@@ -246,7 +246,7 @@ impl StackInterface {
     pub fn ipv4_tx(&mut self,
                    dst: Ipv4Addr,
                    gw: Option<Ipv4Addr>)
-                   -> StackResult<Ipv4TxImpl<EthernetTxImpl<TxImpl>>> {
+                   -> StackResult<Ipv4TxImpl<EthernetTxImpl<DatalinkTx>>> {
         let local_dst = gw.unwrap_or(dst);
         if let Some(src) = self.closest_local_ip(local_dst) {
             let dst_mac = match self.arp_table.get(local_dst) {
@@ -370,7 +370,9 @@ impl NetworkStack {
         Ok(())
     }
 
-    pub fn ipv4_tx(&mut self, dst: Ipv4Addr) -> StackResult<Ipv4TxImpl<EthernetTxImpl<TxImpl>>> {
+    pub fn ipv4_tx(&mut self,
+                   dst: Ipv4Addr)
+                   -> StackResult<Ipv4TxImpl<EthernetTxImpl<DatalinkTx>>> {
         if let Some((gw, interface)) = self.routing_table.route(dst) {
             if let Some(stack_interface) = self.interfaces.get_mut(&interface) {
                 stack_interface.ipv4_tx(dst, gw)
@@ -384,7 +386,7 @@ impl NetworkStack {
 
     pub fn icmp_tx(&mut self,
                    dst_ip: Ipv4Addr)
-                   -> StackResult<IcmpTx<Ipv4TxImpl<EthernetTxImpl<TxImpl>>>> {
+                   -> StackResult<IcmpTx<Ipv4TxImpl<EthernetTxImpl<DatalinkTx>>>> {
         let ipv4_tx = self.ipv4_tx(dst_ip)?;
         Ok(icmp::IcmpTx::new(ipv4_tx))
     }
@@ -418,7 +420,7 @@ impl NetworkStack {
                   dst_ip: Ipv4Addr,
                   src: u16,
                   dst_port: u16)
-                  -> StackResult<UdpTx<Ipv4TxImpl<EthernetTxImpl<TxImpl>>>> {
+                  -> StackResult<UdpTx<Ipv4TxImpl<EthernetTxImpl<DatalinkTx>>>> {
         let ipv4_tx = self.ipv4_tx(dst_ip)?;
         Ok(udp::UdpTx::new(ipv4_tx, src, dst_port))
     }
@@ -481,23 +483,21 @@ impl NetworkStack {
     }
 }
 
-/// Base representation of the sending part of an interface. This is what an
-/// `EthernetTx` send to.
-pub struct TxImpl {
+pub struct DatalinkTx {
     tx: Arc<Mutex<TxBarrier>>,
     version: u64,
 }
 
-impl TxImpl {
+impl DatalinkTx {
     fn new(tx: Arc<Mutex<TxBarrier>>, version: u64) -> Self {
-        TxImpl {
+        DatalinkTx {
             tx: tx,
             version: version,
         }
     }
 }
 
-impl Tx for TxImpl {
+impl Tx for DatalinkTx {
     fn send<P: Payload>(&mut self, num_packets: usize, packet_size: usize, payload: P) -> TxResult {
         let mut tx = self.tx.lock().unwrap();
         if self.version != tx.version() {
