@@ -1,4 +1,4 @@
-use {Payload, HasPayload, BasicPayload, Tx, TxResult};
+use {Payload, HasPayload, BasicPayload};
 
 use pnet::packet::MutablePacket;
 use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
@@ -54,53 +54,9 @@ mod basic_ethernet_payload_tests {
     fn ether_type() {
         let testee = BasicEthernetPayload::new(EtherTypes::Ipv6, &[]);
         assert_eq!(EtherTypes::Ipv6, testee.ether_type());
-    }
 
-    #[test]
-    fn len_zero() {
         let testee = BasicEthernetPayload::new(EtherTypes::Arp, &[]);
-        assert_eq!(0, testee.len());
-    }
-
-    #[test]
-    fn len_three() {
-        let data = &[5, 6, 7];
-        let testee = BasicEthernetPayload::new(EtherTypes::Arp, data);
-        assert_eq!(3, testee.len());
-    }
-
-    #[test]
-    fn build_without_data() {
-        let mut testee = BasicEthernetPayload::new(EtherTypes::Arp, &[]);
-        let mut buffer = vec![99; 1];
-        testee.build(&mut buffer);
-        assert_eq!(99, buffer[0]);
-    }
-
-    #[test]
-    fn build_with_data() {
-        let data = &[5, 6, 7];
-        let mut testee = BasicEthernetPayload::new(EtherTypes::Arp, data);
-        let mut buffer = vec![0; 1];
-        testee.build(&mut buffer[0..0]);
-
-        testee.build(&mut buffer);
-        assert_eq!(5, buffer[0]);
-        testee.build(&mut buffer);
-        assert_eq!(6, buffer[0]);
-        testee.build(&mut buffer);
-        assert_eq!(7, buffer[0]);
-
-        testee.build(&mut buffer[0..0]);
-    }
-
-    #[test]
-    fn build_with_larger_buffer() {
-        let data = &[5, 6];
-        let mut testee = BasicEthernetPayload::new(EtherTypes::Arp, data);
-        let mut buffer = vec![0; 3];
-        testee.build(&mut buffer);
-        assert_eq!(&[5, 6, 0], &buffer[..]);
+        assert_eq!(EtherTypes::Arp, testee.ether_type());
     }
 }
 
@@ -108,27 +64,24 @@ mod basic_ethernet_payload_tests {
 pub trait EthernetTx {
     fn src(&self) -> MacAddr;
     fn dst(&self) -> MacAddr;
-    fn send<P>(&mut self, num_packets: usize, packet_size: usize, payload: P) -> TxResult
-        where P: EthernetPayload;
+    fn send<P: EthernetPayload>(&mut self, payload: P) -> EthernetBuilder<P>;
 }
 
-pub struct EthernetTxImpl<T: Tx> {
+pub struct EthernetTxImpl {
     src: MacAddr,
     dst: MacAddr,
-    tx: T,
 }
 
-impl<T: Tx> EthernetTxImpl<T> {
-    pub fn new(tx: T, src: MacAddr, dst: MacAddr) -> Self {
+impl EthernetTxImpl {
+    pub fn new(src: MacAddr, dst: MacAddr) -> Self {
         EthernetTxImpl {
             src: src,
             dst: dst,
-            tx: tx,
         }
     }
 }
 
-impl<T: Tx> EthernetTx for EthernetTxImpl<T> {
+impl EthernetTx for EthernetTxImpl {
     fn src(&self) -> MacAddr {
         self.src
     }
@@ -137,20 +90,16 @@ impl<T: Tx> EthernetTx for EthernetTxImpl<T> {
         self.dst
     }
 
-    /// Send ethernet packets to the network.
-    ///
-    /// For every packet, all `header_size+size` bytes will be sent, no
-    /// matter how small payload is provided to the `MutableEthernetPacket` in
-    /// the call to `builder`. So in total `packets * (header_size+size)` bytes
-    /// will be sent. This is  usually not a problem since the IP layer has the
-    /// length in the header and the extra bytes should thus not cause any
-    /// trouble.
-    fn send<P>(&mut self, num_packets: usize, packet_size: usize, payload: P) -> TxResult
-        where P: EthernetPayload
-    {
-        let builder = EthernetBuilder::new(self.src, self.dst, payload);
-        let size_with_header = packet_size + EthernetPacket::minimum_packet_size();
-        self.tx.send(num_packets, size_with_header, builder)
+    fn send<P: EthernetPayload>(&mut self, payload: P) -> Payload {
+        EthernetBuilder::new(self.src, self.dst, payload)
+    }
+}
+
+use TxPayload;
+
+impl TxPayload<EthernetPayload> for EthernetTxImpl {
+    fn send(&mut self, payload: EthernetPayload) -> Payload {
+        EthernetTxImpl::send(self, payload)
     }
 }
 
@@ -174,8 +123,12 @@ impl<P: EthernetPayload> EthernetBuilder<P> {
 }
 
 impl<P: EthernetPayload> Payload for EthernetBuilder<P> {
-    fn len(&self) -> usize {
-        EthernetPacket::minimum_packet_size() + self.payload.len()
+    fn num_packets(&self) -> usize {
+        self.payload.num_packets()
+    }
+
+    fn packet_size(&self) -> usize {
+        EthernetPacket::minimum_packet_size() + self.payload.packet_size()
     }
 
     fn build(&mut self, buffer: &mut [u8]) {
@@ -201,31 +154,29 @@ mod ethernet_tx_tests {
 
     use super::*;
 
-    pub struct MockTx {
-        chan: Sender<Box<[u8]>>,
-    }
+    // pub struct MockTx {
+    //     chan: Sender<Box<[u8]>>,
+    // }
 
-    impl MockTx {
-        pub fn new() -> (Self, Receiver<Box<[u8]>>) {
-            let (tx, rx) = mpsc::channel();
-            (MockTx { chan: tx }, rx)
-        }
-    }
+    // impl MockTx {
+    //     pub fn new() -> (Self, Receiver<Box<[u8]>>) {
+    //         let (tx, rx) = mpsc::channel();
+    //         (MockTx { chan: tx }, rx)
+    //     }
+    // }
 
-    impl Tx for MockTx {
-        fn send<P>(&mut self, num_packets: usize, packet_size: usize, mut payload: P) -> TxResult
-            where P: Payload
-        {
-            for _ in 0..num_packets {
-                let mut buffer = vec![0; packet_size];
-                payload.build(&mut buffer[..]);
-                self.chan
-                    .send(buffer.into_boxed_slice())
-                    .map_err(|e| TxError::Other(e.description().to_owned()))?;
-            }
-            Ok(())
-        }
-    }
+    // impl Tx for MockTx {
+    //     fn send<P: Payload>(&mut self, mut payload: P) -> TxResult<()> {
+    //         for _ in 0..payload.num_packets() {
+    //             let mut buffer = vec![0; payload.packet_size()];
+    //             payload.build(&mut buffer);
+    //             self.chan
+    //                 .send(buffer.into_boxed_slice())
+    //                 .map_err(|e| TxError::Other(e.description().to_owned()))?;
+    //         }
+    //         Ok(())
+    //     }
+    // }
 
     lazy_static! {
         static ref SRC: MacAddr = MacAddr::new(0, 0, 0, 0, 0, 1);
@@ -233,30 +184,29 @@ mod ethernet_tx_tests {
     }
 
     #[test]
-    fn new() {
-        let (mock_tx, _) = MockTx::new();
-        let testee = EthernetTxImpl::new(mock_tx, *SRC, *DST);
+    fn src_dst() {
+        let testee = EthernetTxImpl::new(*SRC, *DST);
         assert_eq!(*SRC, testee.src());
         assert_eq!(*DST, testee.dst());
     }
 
     #[test]
     fn send() {
-        let (mock_tx, rx) = MockTx::new();
-        let mut testee = EthernetTxImpl::new(mock_tx, *SRC, *DST);
-
         let data = &[8, 7, 6];
         let payload = BasicEthernetPayload::new(EtherTypes::Arp, data);
 
-        testee.send(1, 3, payload).unwrap();
+        let mut testee = EthernetTxImpl::new(*SRC, *DST);
+        let mut ethernet_builder = testee.send(payload);
 
-        let buffer = rx.try_recv().unwrap();
-        assert!(rx.try_recv().is_err());
+        assert_eq!(1, ethernet_builder.num_packets());
+        assert_eq!(17, ethernet_builder.packet_size());
+        let mut buffer = vec![0; 1024];
+        ethernet_builder.build(&mut buffer);
 
         let pkg = EthernetPacket::new(&buffer).unwrap();
         assert_eq!(*SRC, pkg.get_source());
         assert_eq!(*DST, pkg.get_destination());
         assert_eq!(EtherTypes::Arp, pkg.get_ethertype());
-        assert_eq!(data, pkg.payload());
+        assert_eq!(data, &pkg.payload()[..3]);
     }
 }

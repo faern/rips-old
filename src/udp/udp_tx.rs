@@ -7,26 +7,24 @@ use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum_adv};
 use std::cmp;
 use std::net::SocketAddrV4;
 
-pub struct UdpTx<T: Ipv4Tx> {
+pub struct UdpTx {
     src: u16,
     dst: u16,
-    ipv4: T,
 }
 
-impl<T: Ipv4Tx> UdpTx<T> {
-    pub fn new(ipv4: T, src: u16, dst: u16) -> Self {
+impl UdpTx {
+    pub fn new(src: u16, dst: u16) -> Self {
         UdpTx {
             src: src,
             dst: dst,
-            ipv4: ipv4,
         }
     }
 
-    pub fn send(&mut self, payload: &[u8]) -> TxResult {
-        let src = SocketAddrV4::new(self.ipv4.src(), self.src);
-        let dst = SocketAddrV4::new(self.ipv4.dst(), self.dst);
+    pub fn send<T: Ipv4Tx>(&mut self, tx: T, payload: &[u8]) -> TxResult {
+        let src = SocketAddrV4::new(tx.src(), self.src);
+        let dst = SocketAddrV4::new(tx.dst(), self.dst);
         let builder = UdpBuilder::new(src, dst, payload);
-        self.ipv4.send(builder)
+        tx.send(builder)
     }
 }
 

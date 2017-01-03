@@ -1,45 +1,76 @@
-use {Payload, TxResult};
-use ethernet::{EthernetPayload, EthernetTx};
+use {Payload, TxResult, DatalinkTx, Tx};
+use ethernet::{EtherType, EtherTypes, MacAddr};
+use ethernet::{EthernetPayload, EthernetTx, EthernetTxImpl};
 
 use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpOperation, ArpPacket, MutableArpPacket};
-use pnet::packet::ethernet::{EtherType, EtherTypes};
-use pnet::util::MacAddr;
 
 use std::net::Ipv4Addr;
 
-pub struct ArpRequestTx<T: EthernetTx> {
-    ethernet: T,
+pub struct ArpProtocol {
+    datalink: DatalinkTx,
+    ethernet: EthernetTxImpl,
+    arp_request: ArpRequestTx,
+    arp_reply: ArpReplyTx,
 }
 
-impl<T: EthernetTx> ArpRequestTx<T> {
-    pub fn new(ethernet: T) -> Self {
-        ArpRequestTx { ethernet: ethernet }
+impl ArpProtocol {
+    pub fn new(datalink: DatalinkTx,
+               ethernet: EthernetTxImpl,
+               arp_request: ArpRequestTx,
+               arp_reply: ArpReplyTx)
+               -> Self {
+        ArpProtocol {
+            datalink: datalink,
+            ethernet: ethernet,
+            arp_request: arp_request,
+            arp_reply: arp_reply,
+        }
+    }
+
+    pub fn send_request(&mut self,
+                        sender_mac: MacAddr,
+                        sender_ip: Ipv4Addr,
+                        target_ip: Ipv4Addr)
+                        -> TxResult<()> {
+        let arp_payload = self.arp_request.send(sender_mac, sender_ip, target_ip);
+        let ethernet_payload = self.ethernet.send(arp_payload);
+        self.datalink.send(ethernet_payload)
+    }
+}
+
+pub struct ArpRequestTx(());
+
+impl ArpRequestTx {
+    pub fn new() -> Self {
+        ArpRequestTx(())
     }
 
     /// Sends an Arp request packet to the network. More specifically Ipv4 to
     /// Ethernet request
-    pub fn send(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> TxResult {
-        let builder = ArpBuilder::new_request(self.ethernet.src(), sender_ip, target_ip);
-        self.ethernet.send(1, ArpPacket::minimum_packet_size(), builder)
-    }
-}
-
-pub struct ArpReplyTx<T: EthernetTx> {
-    ethernet: T,
-}
-
-impl<T: EthernetTx> ArpReplyTx<T> {
-    pub fn new(ethernet: T) -> Self {
-        ArpReplyTx { ethernet: ethernet }
-    }
-
     pub fn send(&mut self,
+                sender_mac: MacAddr,
                 sender_ip: Ipv4Addr,
-                target_mac: MacAddr,
                 target_ip: Ipv4Addr)
-                -> TxResult {
-        let builder = ArpBuilder::new_reply(self.ethernet.src(), sender_ip, target_mac, target_ip);
-        self.ethernet.send(1, ArpPacket::minimum_packet_size(), builder)
+                -> ArpBuilder {
+        ArpBuilder::new_request(sender_mac, sender_ip, target_ip)
+    }
+}
+
+pub struct ArpReplyTx {
+    sender_mac: MacAddr,
+    sender_ip: Ipv4Addr,
+}
+
+impl ArpReplyTx {
+    pub fn new(sender_mac: MacAddr, sender_ip: Ipv4Addr) -> Self {
+        ArpReplyTx {
+            sender_mac: sender_mac,
+            sender_ip: sender_ip,
+        }
+    }
+
+    pub fn send(&mut self, target_mac: MacAddr, target_ip: Ipv4Addr) -> ArpBuilder {
+        ArpBuilder::new_reply(self.sender_mac, self.sender_ip, target_mac, target_ip)
     }
 }
 
@@ -52,7 +83,6 @@ pub struct ArpBuilder {
 }
 
 impl ArpBuilder {
-    /// Constructs a new `ArpBuilder` able to construct Arp packets
     pub fn new_request(sender_mac: MacAddr, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> Self {
         ArpBuilder {
             operation: ArpOperations::Request,
@@ -85,7 +115,11 @@ impl EthernetPayload for ArpBuilder {
 }
 
 impl Payload for ArpBuilder {
-    fn len(&self) -> usize {
+    fn num_packets(&self) -> usize {
+        1
+    }
+
+    fn packet_size(&self) -> usize {
         ArpPacket::minimum_packet_size()
     }
 

@@ -193,3 +193,23 @@ impl Error for StackError {
         }
     }
 }
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum ConversionError {
+    NoMacAddress,
+}
+
+impl fmt::Display for ConversionError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.write_str(self.description())
+    }
+}
+
+impl Error for ConversionError {
+    fn description(&self) -> &str {
+        use ConversionError::*;
+        match *self {
+            NoMacAddress => "No MAC address on interface",
+        }
+    }
+}

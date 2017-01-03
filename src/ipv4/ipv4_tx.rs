@@ -50,32 +50,31 @@ impl<'a> HasPayload for BasicIpv4Payload<'a> {
 pub trait Ipv4Tx {
     fn src(&self) -> Ipv4Addr;
     fn dst(&self) -> Ipv4Addr;
-    fn send<P: Ipv4Payload>(&mut self, payload: P) -> TxResult;
+    fn send<P>(&mut self, payload: P) -> TxResult<(usize, usize, Ipv4Builder<P>)>
+        where P: Ipv4Payload;
 }
 
 /// IPv4 packet builder and sender. Will fragment packets larger than the
 /// MTU reported by the underlying `EthernetTx` given to the constructor.
-pub struct Ipv4TxImpl<T: EthernetTx> {
+pub struct Ipv4TxImpl {
     src: Ipv4Addr,
     dst: Ipv4Addr,
     mtu: usize,
-    ethernet: T,
     next_identification: u16,
 }
 
-impl<T: EthernetTx> Ipv4TxImpl<T> {
+impl Ipv4TxImpl {
     /// Constructs a new `Ipv4Tx`.
     ///
     /// # Panics
     ///
     /// Panics if `mtu` is smaller than the minimum Ipv4 packet size.
-    pub fn new(ethernet: T, src: Ipv4Addr, dst: Ipv4Addr, mtu: usize) -> Self {
+    pub fn new(src: Ipv4Addr, dst: Ipv4Addr, mtu: usize) -> Self {
         assert!(mtu >= Ipv4Packet::minimum_packet_size());
         Ipv4TxImpl {
             src: src,
             dst: dst,
             mtu: mtu,
-            ethernet: ethernet,
             next_identification: 0,
         }
     }
@@ -85,7 +84,7 @@ impl<T: EthernetTx> Ipv4TxImpl<T> {
     }
 }
 
-impl<T: EthernetTx> Ipv4Tx for Ipv4TxImpl<T> {
+impl Ipv4Tx for Ipv4TxImpl {
     fn src(&self) -> Ipv4Addr {
         self.src
     }
@@ -94,7 +93,9 @@ impl<T: EthernetTx> Ipv4Tx for Ipv4TxImpl<T> {
         self.dst
     }
 
-    fn send<P: Ipv4Payload>(&mut self, payload: P) -> TxResult {
+    fn send<P>(&mut self, payload: P) -> TxResult<(usize, usize, Ipv4Builder<P>)>
+        where P: Ipv4Payload
+    {
         let payload_len = payload.len() as usize;
         let builder = Ipv4Builder::new(self.src, self.dst, self.next_identification, payload);
         self.next_identification.wrapping_add(1);
@@ -102,11 +103,11 @@ impl<T: EthernetTx> Ipv4Tx for Ipv4TxImpl<T> {
         let max_payload_per_fragment = self.max_payload_per_fragment();
         if payload_len <= max_payload_per_fragment {
             let size = payload_len + Ipv4Packet::minimum_packet_size();
-            self.ethernet.send(1, size, builder)
+            Ok((1, size, builder))
         } else {
             let fragments = 1 + ((payload_len - 1) / max_payload_per_fragment);
             let size = max_payload_per_fragment + Ipv4Packet::minimum_packet_size();
-            self.ethernet.send(fragments, size, builder)
+            Ok((fragments, size, builder))
         }
     }
 }

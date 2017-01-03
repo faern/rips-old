@@ -68,7 +68,7 @@ impl<T: Ipv4Tx> IcmpTx<T> {
 
     /// Sends a general Icmp packet. Should not be called directly in general,
     /// instead use the specialized `send_echo` for ping packets.
-    pub fn send<P>(&mut self, payload: P) -> TxResult
+    pub fn send<P>(&mut self, payload: P) -> TxResult<()>
         where P: IcmpPayload
     {
         let builder = IcmpBuilder::new(payload);
@@ -76,7 +76,7 @@ impl<T: Ipv4Tx> IcmpTx<T> {
     }
 
     /// Sends an Echo Request packet (ping) with the given payload.
-    pub fn send_echo(&mut self, payload: &[u8]) -> TxResult {
+    pub fn send_echo(&mut self, payload: &[u8]) -> TxResult<()> {
         let builder = PingBuilder::new(payload);
         self.send(builder)
     }

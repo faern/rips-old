@@ -190,7 +190,7 @@ mod errors;
 pub use errors::*;
 
 mod payload;
-pub use payload::{Payload, BasicPayload, HasPayload};
+pub use payload::{Payload, BasicPayload, HasPayload, TxPayload};
 
 pub mod rx;
 
@@ -201,13 +201,11 @@ pub mod ethernet;
 pub mod arp;
 
 /// Module containing IPv4 functionality
-pub mod ipv4;
-
+// pub mod ipv4;
 /// Module containing internet control message procotol (icmp) functionality
-pub mod icmp;
-
+// pub mod icmp;
 /// Module containing Udp functionality.
-pub mod udp;
+// pub mod udp;
 
 mod routing;
 pub use routing::RoutingTable;
@@ -217,11 +215,7 @@ mod util;
 pub mod testing;
 
 mod stack;
-
-pub use pnet::util::MacAddr;
-pub use stack::{NetworkStack, StackResult, DatalinkTx};
-
-pub static DEFAULT_BUFFER_SIZE: usize = 1024 * 128;
+pub use stack::{NetworkStack, StackResult, DatalinkTx, default_stack};
 
 /// Representation for one network interface. More or less a subset of
 /// `pnet::util::NetworkInterface`, but with guaranteed MAC address.
@@ -232,18 +226,34 @@ pub struct Interface {
     pub name: String,
 
     /// The MAC address of this interface
-    pub mac: MacAddr,
+    pub mac: ethernet::MacAddr,
 }
 
 impl Interface {
     /// Creates a new `Interface` with the given properties
-    pub fn new(name: String, mac: MacAddr) -> Interface {
+    pub fn new(name: String, mac: ethernet::MacAddr) -> Interface {
         Interface {
             name: name,
             mac: mac,
         }
     }
+
+    /// Converts a pnet `NetworkInterface` into a rips `Interface`.
+    /// Will fail if the given `NetworkInterface` does not have an associated
+    /// MAC address.
+    /// Can be changed into a `TryFrom` impl when that trait is stabilized.
+    pub fn try_from(interface: &NetworkInterface) -> Result<Interface, ConversionError> {
+        if let Some(mac) = interface.mac {
+            Ok(Interface {
+                name: interface.name.clone(),
+                mac: mac,
+            })
+        } else {
+            Err(ConversionError::NoMacAddress)
+        }
+    }
 }
+
 
 /// Represents the channel used for sending to and reading from one network
 /// interface. Basically a simplification of `pnet::datalink::Channel` but
@@ -253,34 +263,14 @@ pub struct EthernetChannel(pub Box<datalink::EthernetDataLinkSender>,
 
 
 /// Type binding for the type of `Result` that a send method returns.
-pub type TxResult = Result<(), TxError>;
+pub type TxResult<T> = Result<T, TxError>;
 
 /// Simple type definition for return type of `recv` on `*Rx` objects.
 pub type RxResult = Result<(), RxError>;
 
 
 pub trait Tx {
-    fn send<P: Payload>(&mut self, num_packets: usize, packet_size: usize, payload: P) -> TxResult;
-}
-
-/// Create a default stack managing all interfaces given by
-/// `pnet::datalink::interfaces()`.
-pub fn default_stack() -> StackResult<NetworkStack> {
-    let mut stack = NetworkStack::new();
-    for interface in datalink::interfaces() {
-        if let Ok(rips_interface) = convert_interface(&interface) {
-            let mut config = datalink::Config::default();
-            config.write_buffer_size = DEFAULT_BUFFER_SIZE;
-            config.read_buffer_size = DEFAULT_BUFFER_SIZE;
-            let channel = match try!(datalink::channel(&interface, config)
-                .map_err(StackError::from)) {
-                datalink::Channel::Ethernet(tx, rx) => EthernetChannel(tx, rx),
-                _ => unreachable!(),
-            };
-            try!(stack.add_interface(rips_interface, channel));
-        }
-    }
-    Ok(stack)
+    fn send<P: Payload>(&mut self, payload: P) -> TxResult<()>;
 }
 
 // pub fn stack<Datalink>(_datalink_provider: Datalink) ->
@@ -306,18 +296,3 @@ pub fn default_stack() -> StackResult<NetworkStack> {
 // pub fn default_stack() -> StackResult<NetworkStack> {
 //     stack(datalink::DefaultDatalink)
 // }
-
-/// Converts a pnet `NetworkInterface` into a rips `Interface`.
-/// Will fail if the given `NetworkInterface` does not have an associated MAC
-/// address.
-/// Can be changed into a `TryFrom` impl when that trait is stabilized
-pub fn convert_interface(interface: &NetworkInterface) -> Result<Interface, ()> {
-    if let Some(mac) = interface.mac {
-        Ok(Interface {
-            name: interface.name.clone(),
-            mac: mac,
-        })
-    } else {
-        Err(())
-    }
-}
