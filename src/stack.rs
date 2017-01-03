@@ -1,7 +1,7 @@
 use {EthernetChannel, Interface, RoutingTable, TxError, TxResult, Tx, Payload};
 use StackError;
-use arp::{self, ArpRequestTx, ArpReplyTx, ArpTable};
-use ethernet::{EthernetRx, EthernetTxImpl};
+use arp::{self, ArpTx, ArpTable};
+use ethernet::{EthernetRx, EthernetTx};
 // use icmp::{self, IcmpTx};
 
 use ipnetwork::Ipv4Network;
@@ -53,16 +53,12 @@ impl StackInterfaceData {
         DatalinkTx::new(self.tx.clone(), version)
     }
 
-    pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTxImpl {
-        EthernetTxImpl::new(self.interface.mac, dst)
+    pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTx {
+        EthernetTx::new(self.interface.mac, dst)
     }
 
-    pub fn arp_request_tx(&self) -> ArpRequestTx {
-        ArpRequestTx::new()
-    }
-
-    pub fn arp_reply_tx(&self, sender_ip: Ipv4Addr) -> ArpReplyTx {
-        ArpReplyTx::new(self.interface.mac, sender_ip)
+    pub fn arp_tx(&self) -> ArpTx {
+        ArpTx::new()
     }
 }
 
@@ -137,7 +133,8 @@ impl StackInterfaceThread {
         let has_target_ip = self.data.ipv4_addresses.read().unwrap().contains(&target_ip);
         if has_target_ip {
             debug!("Incoming Arp request for my IP {}", target_ip);
-            tx_send!(|| self.data.arp_reply_tx(); target_ip, sender_mac, sender_ip).unwrap_or(());
+            // tx_send!(|| self.data.arp_reply_tx(); target_ip, sender_mac,
+            // sender_ip).unwrap_or(());
         }
     }
 }
@@ -194,11 +191,11 @@ impl StackInterface {
         &self.data.interface
     }
 
-    // pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTxImpl<DatalinkTx> {
+    // pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTx {
     //     self.data.ethernet_tx(dst)
     // }
 
-    // pub fn arp_request_tx(&self) -> ArpRequestTx<EthernetTxImpl<DatalinkTx>> {
+    // pub fn arp_request_tx(&self) -> ArpRequestTx {
     //     self.data.arp_request_tx()
     // }
 
@@ -211,7 +208,7 @@ impl StackInterface {
         match self.ipv4_datas.entry(ip) {
             Entry::Occupied(_) => Err(StackError::IllegalArgument),
             Entry::Vacant(entry) => {
-                let mut proto_listeners = HashMap::new();
+                // let mut proto_listeners = HashMap::new();
 
                 // let udp_listeners = Arc::new(Mutex::new(HashMap::new()));
                 // let udp_rx = udp::UdpRx::new(udp_listeners.clone());

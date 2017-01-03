@@ -1,9 +1,5 @@
 use std::cmp;
 
-pub trait TxPayload<P> {
-    fn send<Payload: P>(&mut self, payload: Payload) -> Payload;
-}
-
 /// Super trait to any payload. Represents any type that can become the payload
 /// of a packet.
 pub trait Payload {

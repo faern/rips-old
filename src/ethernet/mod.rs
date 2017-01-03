@@ -9,5 +9,4 @@ pub use pnet::packet::ethernet::{EtherType, EtherTypes};
 pub use pnet::util::MacAddr;
 
 pub use self::ethernet_rx::{BasicEthernetListener, EthernetListener, EthernetRx};
-pub use self::ethernet_tx::{BasicEthernetPayload, EthernetBuilder, EthernetPayload, EthernetTx,
-                            EthernetTxImpl};
+pub use self::ethernet_tx::{BasicEthernetPayload, EthernetBuilder, EthernetPayload, EthernetTx};

@@ -46,24 +46,16 @@ impl<'a> HasPayload for BasicIpv4Payload<'a> {
     }
 }
 
-
-pub trait Ipv4Tx {
-    fn src(&self) -> Ipv4Addr;
-    fn dst(&self) -> Ipv4Addr;
-    fn send<P>(&mut self, payload: P) -> TxResult<(usize, usize, Ipv4Builder<P>)>
-        where P: Ipv4Payload;
-}
-
 /// IPv4 packet builder and sender. Will fragment packets larger than the
 /// MTU reported by the underlying `EthernetTx` given to the constructor.
-pub struct Ipv4TxImpl {
+pub struct Ipv4Tx {
     src: Ipv4Addr,
     dst: Ipv4Addr,
     mtu: usize,
     next_identification: u16,
 }
 
-impl Ipv4TxImpl {
+impl Ipv4Tx {
     /// Constructs a new `Ipv4Tx`.
     ///
     /// # Panics
@@ -82,20 +74,16 @@ impl Ipv4TxImpl {
     pub fn max_payload_per_fragment(&self) -> usize {
         (self.mtu - Ipv4Packet::minimum_packet_size()) & !0b111
     }
-}
 
-impl Ipv4Tx for Ipv4TxImpl {
-    fn src(&self) -> Ipv4Addr {
+    pub fn src(&self) -> Ipv4Addr {
         self.src
     }
 
-    fn dst(&self) -> Ipv4Addr {
+    pub fn dst(&self) -> Ipv4Addr {
         self.dst
     }
 
-    fn send<P>(&mut self, payload: P) -> TxResult<(usize, usize, Ipv4Builder<P>)>
-        where P: Ipv4Payload
-    {
+    pub fn send<P: Ipv4Payload>(&mut self, payload: P) -> Ipv4Builder<P> {
         let payload_len = payload.len() as usize;
         let builder = Ipv4Builder::new(self.src, self.dst, self.next_identification, payload);
         self.next_identification.wrapping_add(1);

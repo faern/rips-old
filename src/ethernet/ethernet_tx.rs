@@ -1,8 +1,9 @@
 use {Payload, HasPayload, BasicPayload};
 
 use pnet::packet::MutablePacket;
-use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
-use pnet::util::MacAddr;
+use pnet::packet::ethernet::{EthernetPacket, MutableEthernetPacket};
+
+use super::{MacAddr, EtherType};
 
 /// Trait for anything wishing to be the payload of an Ethernet frame.
 pub trait EthernetPayload: Payload {
@@ -60,46 +61,30 @@ mod basic_ethernet_payload_tests {
     }
 }
 
-
-pub trait EthernetTx {
-    fn src(&self) -> MacAddr;
-    fn dst(&self) -> MacAddr;
-    fn send<P: EthernetPayload>(&mut self, payload: P) -> EthernetBuilder<P>;
-}
-
-pub struct EthernetTxImpl {
+#[derive(Clone)]
+pub struct EthernetTx {
     src: MacAddr,
     dst: MacAddr,
 }
 
-impl EthernetTxImpl {
+impl EthernetTx {
     pub fn new(src: MacAddr, dst: MacAddr) -> Self {
-        EthernetTxImpl {
+        EthernetTx {
             src: src,
             dst: dst,
         }
     }
-}
 
-impl EthernetTx for EthernetTxImpl {
-    fn src(&self) -> MacAddr {
+    pub fn src(&self) -> MacAddr {
         self.src
     }
 
-    fn dst(&self) -> MacAddr {
+    pub fn dst(&self) -> MacAddr {
         self.dst
     }
 
-    fn send<P: EthernetPayload>(&mut self, payload: P) -> Payload {
+    pub fn send<P: EthernetPayload>(&mut self, payload: P) -> EthernetBuilder<P> {
         EthernetBuilder::new(self.src, self.dst, payload)
-    }
-}
-
-use TxPayload;
-
-impl TxPayload<EthernetPayload> for EthernetTxImpl {
-    fn send(&mut self, payload: EthernetPayload) -> Payload {
-        EthernetTxImpl::send(self, payload)
     }
 }
 
@@ -185,7 +170,7 @@ mod ethernet_tx_tests {
 
     #[test]
     fn src_dst() {
-        let testee = EthernetTxImpl::new(*SRC, *DST);
+        let testee = EthernetTx::new(*SRC, *DST);
         assert_eq!(*SRC, testee.src());
         assert_eq!(*DST, testee.dst());
     }
@@ -195,7 +180,7 @@ mod ethernet_tx_tests {
         let data = &[8, 7, 6];
         let payload = BasicEthernetPayload::new(EtherTypes::Arp, data);
 
-        let mut testee = EthernetTxImpl::new(*SRC, *DST);
+        let mut testee = EthernetTx::new(*SRC, *DST);
         let mut ethernet_builder = testee.send(payload);
 
         assert_eq!(1, ethernet_builder.num_packets());

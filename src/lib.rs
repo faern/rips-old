@@ -190,7 +190,7 @@ mod errors;
 pub use errors::*;
 
 mod payload;
-pub use payload::{Payload, BasicPayload, HasPayload, TxPayload};
+pub use payload::{Payload, BasicPayload, HasPayload};
 
 pub mod rx;
 
@@ -271,6 +271,25 @@ pub type RxResult = Result<(), RxError>;
 
 pub trait Tx {
     fn send<P: Payload>(&mut self, payload: P) -> TxResult<()>;
+}
+
+pub trait Protocol {
+    type Input;
+    type Payload: Payload;
+
+    fn create_builder(&mut self, input: Self::Input) -> Self::Payload;
+}
+
+pub struct ProtocolTx<P: Protocol> {
+    tx: DatalinkTx,
+    protocol: P,
+}
+
+impl<P: Protocol> ProtocolTx<P> {
+    pub fn send(&mut self, input: P::Input) -> TxResult<()> {
+        let builder = self.protocol.create_builder(input);
+        self.tx.send(builder)
+    }
 }
 
 // pub fn stack<Datalink>(_datalink_provider: Datalink) ->
