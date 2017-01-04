@@ -1,7 +1,7 @@
 use {EthernetChannel, Interface, RoutingTable, TxError, TxResult, Tx, Payload};
 use StackError;
 use arp::{self, ArpTx, ArpTable};
-use ethernet::{EthernetRx, EthernetTx};
+use ethernet::{EthernetRx, EthernetTx, MacAddr};
 // use icmp::{self, IcmpTx};
 
 use ipnetwork::Ipv4Network;
@@ -12,7 +12,6 @@ use pnet::packet::MutablePacket;
 use pnet::packet::ethernet::MutableEthernetPacket;
 use pnet::packet::icmp::IcmpType;
 use pnet::packet::ip::IpNextHeaderProtocols;
-use pnet::util::MacAddr;
 
 use rand;
 use rand::distributions::{IndependentSample, Range};
@@ -59,6 +58,33 @@ impl StackInterfaceData {
 
     pub fn arp_tx(&self) -> ArpTx {
         ArpTx::new()
+    }
+}
+
+use ethernet::EthernetPayload;
+
+pub struct EthernetSender {
+    interface: Arc<StackInterfaceData>,
+    dst: MacAddr,
+    tx: DatalinkTx,
+    ethernet_tx: EthernetTx,
+}
+
+impl EthernetSender {
+    fn new(interface: Arc<StackInterfaceData>, dst: MacAddr) -> Self {
+        let ethernet_tx = interface.ethernet_tx(dst);
+        let tx = interface.tx();
+        EthernetSender {
+            interface: interface,
+            dst: dst,
+            tx: tx,
+            ethernet_tx: ethernet_tx,
+        }
+    }
+
+    pub fn send<P: EthernetPayload>(&mut self, mut payload: P) -> TxResult<()> {
+        let ethernet_payload = self.ethernet_tx.send(payload);
+        self.tx.send(ethernet_payload)
     }
 }
 
@@ -300,20 +326,25 @@ impl Drop for StackInterface {
     }
 }
 
+struct Ipv4Abc {
+    dst: Ipv4Addr,
+    routing_table: Arc<RwLock<RoutingTable>>,
+}
+
 /// The main struct of this library, managing an entire TCP/IP stack. Takes
 /// care of ARP, routing tables, threads, TCP resends/fragmentation etc. Most
 /// of this is still unimplemented.
 #[derive(Default)]
 pub struct NetworkStack {
     interfaces: HashMap<Interface, StackInterface>,
-    routing_table: RoutingTable,
+    routing_table: Arc<RwLock<RoutingTable>>,
 }
 
 impl NetworkStack {
     pub fn new() -> NetworkStack {
         NetworkStack {
             interfaces: HashMap::new(),
-            routing_table: RoutingTable::new(),
+            routing_table: Arc::new(RwLock::new(RoutingTable::new())),
         }
     }
 
@@ -351,15 +382,15 @@ impl NetworkStack {
         Err(StackError::InvalidInterface)
     }
 
-    pub fn routing_table(&mut self) -> &mut RoutingTable {
-        &mut self.routing_table
+    pub fn routing_table(&mut self) -> Arc<RwLock<RoutingTable>> {
+        self.routing_table.clone()
     }
 
     /// Attach an IPv4 network to an interface.
     /// TODO: Deprecate and make the routing stuff better instead
     pub fn add_ipv4(&mut self, interface: &Interface, ip_net: Ipv4Network) -> StackResult<()> {
         self.interface(interface)?.add_ipv4(ip_net)?;
-        self.routing_table.add_route(ip_net, None, interface.clone());
+        self.routing_table.write().unwrap().add_route(ip_net, None, interface.clone());
         Ok(())
     }
 
@@ -501,7 +532,7 @@ impl DatalinkTx {
 }
 
 impl Tx for DatalinkTx {
-    fn send<P: Payload>(&mut self, payload: P) -> TxResult<()> {
+    fn send<P: Payload>(&mut self, mut payload: P) -> TxResult<()> {
         let mut tx = self.tx.lock().expect("Poisoned lock in stack. This is a Rips bug");
         if self.version != tx.version() {
             Err(TxError::InvalidTx)

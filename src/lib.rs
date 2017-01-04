@@ -273,24 +273,24 @@ pub trait Tx {
     fn send<P: Payload>(&mut self, payload: P) -> TxResult<()>;
 }
 
-pub trait Protocol {
-    type Input;
-    type Payload: Payload;
-
-    fn create_builder(&mut self, input: Self::Input) -> Self::Payload;
+pub trait ProtocolStack<I, O: Payload> {
+    fn create_builder(&mut self, input: I) -> O;
 }
 
-pub struct ProtocolTx<P: Protocol> {
-    tx: DatalinkTx,
-    protocol: P,
-}
+use ethernet::{EthernetTx, EthernetPayload, EthernetBuilder};
 
-impl<P: Protocol> ProtocolTx<P> {
-    pub fn send(&mut self, input: P::Input) -> TxResult<()> {
-        let builder = self.protocol.create_builder(input);
-        self.tx.send(builder)
+impl<P: EthernetPayload> ProtocolStack<P, EthernetBuilder<P>> for EthernetTx {
+    fn create_builder(&mut self, input: P) -> EthernetBuilder<P> {
+        EthernetTx::send(self, input)
     }
 }
+
+// impl<P: Protocol> ProtocolTx<P> {
+//     pub fn send(&mut self, input: P::Input) -> TxResult<()> {
+//         let builder = self.protocol.create_builder(input);
+//         self.tx.send(builder)
+//     }
+// }
 
 // pub fn stack<Datalink>(_datalink_provider: Datalink) ->
 // StackResult<NetworkStack>
