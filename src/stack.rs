@@ -87,19 +87,17 @@ impl EthernetSender {
     pub fn send<P: EthernetPayload>(&mut self, mut payload: P) -> TxResult<()> {
         loop {
             match self.internal_send(&mut payload) {
-                Err(TxError::InvalidTx) => self.create_tx(),
-                result => return result,
+                None => self.create_tx(),
+                Some(result) => return result,
             }
         }
     }
 
-    fn internal_send<P: EthernetPayload>(&mut self, payload: &mut P) -> TxResult<()> {
-        if let Some(txes) = self.tx.as_mut() {
+    fn internal_send<P: EthernetPayload>(&mut self, payload: &mut P) -> Option<TxResult<()>> {
+        self.tx.as_mut().and_then(|txes| {
             let ethernet_payload = txes.ethernet_tx.send(payload);
             txes.tx.send(ethernet_payload)
-        } else {
-            Err(TxError::InvalidTx)
-        }
+        })
     }
 
     fn create_tx(&mut self) {
@@ -135,22 +133,23 @@ impl ArpSender {
         let target_mac = self.target_mac(&payload);
         loop {
             match self.internal_send(target_mac, &mut payload) {
-                Err(TxError::InvalidTx) => self.create_tx(target_mac),
-                result => return result,
+                None => self.create_tx(target_mac),
+                Some(result) => return result,
             }
         }
     }
 
-    fn internal_send<P: ArpPayload>(&mut self,
-                                    target_mac: MacAddr,
-                                    payload: &mut P)
-                                    -> TxResult<()> {
+    fn internal_send<P>(&mut self, target_mac: MacAddr, payload: &mut P) -> Option<TxResult<()>>
+        where P: ArpPayload
+    {
         if !self.ethernet_tx_cache.contains(&target_mac) {
             let ethernet_tx = self.interface.ethernet_tx(target_mac);
             self.ethernet_tx_cache.put(target_mac, ethernet_tx);
         }
+        let mut ethernet_payload = self.arp_tx.send(payload);
         let ethernet_tx = self.ethernet_tx_cache.get(&target_mac).unwrap();
-        Ok(())
+        let tx_payload = ethernet_tx.send(&mut ethernet_payload);
+        self.tx.send(tx_payload)
     }
 
     fn create_tx(&mut self, target_mac: MacAddr) {
@@ -607,15 +606,13 @@ impl DatalinkTx {
             version: version,
         }
     }
-}
 
-impl Tx for DatalinkTx {
-    fn send<P: Payload>(&mut self, payload: P) -> TxResult<()> {
+    fn send<P: Payload>(&mut self, payload: P) -> Option<TxResult<()>> {
         let mut tx = self.tx.lock().expect("Poisoned lock in stack. This is a Rips bug");
         if self.version != tx.version() {
-            Err(TxError::InvalidTx)
+            None
         } else {
-            tx.send(payload)
+            Some(tx.send(payload))
         }
     }
 }
@@ -645,13 +642,6 @@ impl TxBarrier {
     pub fn version(&self) -> u64 {
         self.version
     }
-
-    fn io_result_to_tx_result(&self, r: Option<io::Result<()>>) -> TxResult<()> {
-        match r {
-            None => Err(TxError::Other("Insufficient buffer space".to_owned())),
-            Some(ior) => ior.map_err(|e| TxError::from(e)),
-        }
-    }
 }
 
 impl Tx for TxBarrier {
@@ -659,13 +649,17 @@ impl Tx for TxBarrier {
         let mut packets_left = payload.num_packets();
         let packet_size = payload.packet_size();
         let max_packets_per_call = self.cache_size / packet_size;
-        let mut eth_payload = |mut packet: MutableEthernetPacket| {
+        if max_packets_per_call == 0 {
+            return Err(TxError::TooLargePayload);
+        }
+        let mut ethernet_payload = |mut packet: MutableEthernetPacket| {
             payload.build(packet.packet_mut());
         };
         while packets_left > 0 {
             let num_packets = cmp::min(packets_left, max_packets_per_call);
-            let result = self.tx.build_and_send(num_packets, packet_size, &mut eth_payload);
-            self.io_result_to_tx_result(result)?;
+            let result = self.tx
+                .build_and_send(num_packets, packet_size, &mut ethernet_payload)
+                .expect("Insufficient buffer space")?;
             packets_left -= num_packets;
         }
         Ok(())

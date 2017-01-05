@@ -20,6 +20,16 @@ pub struct ArpRequest {
     target_ip: Ipv4Addr,
 }
 
+impl ArpRequest {
+    pub fn new(sender_mac: MacAddr, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> Self {
+        ArpRequest {
+            sender_mac: sender_mac,
+            sender_ip: sender_ip,
+            target_ip: target_ip,
+        }
+    }
+}
+
 impl ArpPayload for ArpRequest {
     fn operation(&self) -> ArpOperation {
         ArpOperations::Request
@@ -47,6 +57,21 @@ pub struct ArpReply {
     sender_ip: Ipv4Addr,
     target_mac: MacAddr,
     target_ip: Ipv4Addr,
+}
+
+impl ArpReply {
+    pub fn new(sender_mac: MacAddr,
+               sender_ip: Ipv4Addr,
+               target_mac: MacAddr,
+               target_ip: Ipv4Addr)
+               -> Self {
+        ArpReply {
+            sender_mac: sender_mac,
+            sender_ip: sender_ip,
+            target_mac: target_mac,
+            target_ip: target_ip,
+        }
+    }
 }
 
 impl ArpPayload for ArpReply {
@@ -79,28 +104,28 @@ impl ArpTx {
         ArpTx(())
     }
 
-    pub fn send<P: ArpPayload>(&self, payload: P) -> ArpBuilder<P> {
+    pub fn send<'p, P: ArpPayload>(&self, payload: &'p mut P) -> ArpBuilder<'p, P> {
         ArpBuilder::new(payload)
     }
 }
 
-pub struct ArpBuilder<P: ArpPayload> {
-    payload: P,
+pub struct ArpBuilder<'p, P: ArpPayload + 'p> {
+    payload: &'p mut P,
 }
 
-impl<P: ArpPayload> ArpBuilder<P> {
-    pub fn new(payload: P) -> Self {
+impl<'p, P: ArpPayload> ArpBuilder<'p, P> {
+    pub fn new(payload: &'p mut P) -> Self {
         ArpBuilder { payload: payload }
     }
 }
 
-impl<P: ArpPayload> EthernetPayload for ArpBuilder<P> {
+impl<'p, P: ArpPayload> EthernetPayload for ArpBuilder<'p, P> {
     fn ether_type(&self) -> EtherType {
         EtherTypes::Arp
     }
 }
 
-impl<P: ArpPayload> Payload for ArpBuilder<P> {
+impl<'p, P: ArpPayload> Payload for ArpBuilder<'p, P> {
     fn num_packets(&self) -> usize {
         1
     }
