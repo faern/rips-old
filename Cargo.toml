@@ -11,7 +11,7 @@ readme = "README.md"
 
 [dependencies]
 ipnetwork = "0.10.0"
-#pnet = "0.12.0"
+pnet = "0.15.0"
 log = "0.3"
 rand = "0.3"
 lazy_static = "^0.2"
@@ -23,8 +23,8 @@ lazy_static = "^0.2"
 default = []
 bench = []
 
-[dependencies.pnet]
-git = "https://github.com/faern/libpnet"
+#[dependencies.pnet]
+#git = "https://github.com/faern/libpnet"
 #branch = "self-owned-packets"
 #path = "../libpnet"
 
