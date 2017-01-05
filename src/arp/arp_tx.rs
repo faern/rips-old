@@ -34,7 +34,7 @@ impl ArpPayload for ArpRequest {
     }
 
     fn target_mac(&self) -> MacAddr {
-        MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff)
+        MacAddr(0, 0, 0, 0, 0, 0)
     }
 
     fn target_ip(&self) -> Ipv4Addr {
@@ -79,7 +79,7 @@ impl ArpTx {
         ArpTx(())
     }
 
-    pub fn send<P: ArpPayload>(&mut self, payload: P) -> ArpBuilder<P> {
+    pub fn send<P: ArpPayload>(&self, payload: P) -> ArpBuilder<P> {
         ArpBuilder::new(payload)
     }
 }

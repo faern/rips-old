@@ -87,22 +87,22 @@ impl EthernetTx {
         self.dst
     }
 
-    pub fn send<P: EthernetPayload>(&mut self, payload: P) -> EthernetBuilder<P> {
+    pub fn send<'p, P: EthernetPayload>(&self, payload: &'p mut P) -> EthernetBuilder<'p, P> {
         EthernetBuilder::new(self.src, self.dst, payload)
     }
 }
 
 
 /// Struct building Ethernet frames
-pub struct EthernetBuilder<P: EthernetPayload> {
+pub struct EthernetBuilder<'p, P: EthernetPayload + 'p> {
     src: MacAddr,
     dst: MacAddr,
-    payload: P,
+    payload: &'p mut P,
 }
 
-impl<P: EthernetPayload> EthernetBuilder<P> {
+impl<'p, P: EthernetPayload> EthernetBuilder<'p, P> {
     /// Creates a new `EthernetBuilder` with the given parameters
-    pub fn new(src: MacAddr, dst: MacAddr, payload: P) -> Self {
+    pub fn new(src: MacAddr, dst: MacAddr, payload: &'p mut P) -> Self {
         EthernetBuilder {
             src: src,
             dst: dst,
@@ -111,7 +111,7 @@ impl<P: EthernetPayload> EthernetBuilder<P> {
     }
 }
 
-impl<P: EthernetPayload> Payload for EthernetBuilder<P> {
+impl<'p, P: EthernetPayload> Payload for EthernetBuilder<'p, P> {
     fn num_packets(&self) -> usize {
         self.payload.num_packets()
     }
@@ -182,10 +182,10 @@ mod ethernet_tx_tests {
     #[test]
     fn send() {
         let data = &[8, 7, 6];
-        let payload = BasicEthernetPayload::new(EtherTypes::Arp, data);
+        let mut payload = BasicEthernetPayload::new(EtherTypes::Arp, data);
 
         let mut testee = EthernetTx::new(*SRC, *DST);
-        let mut ethernet_builder = testee.send(payload);
+        let mut ethernet_builder = testee.send(&mut payload);
 
         assert_eq!(1, ethernet_builder.num_packets());
         assert_eq!(17, ethernet_builder.packet_size());

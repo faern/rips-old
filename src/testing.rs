@@ -1,4 +1,4 @@
-use {EthernetChannel, Interface /* NetworkStack */};
+use {EthernetChannel, Interface, NetworkStack};
 
 use pnet::datalink::{Channel, dummy};
 
@@ -35,17 +35,16 @@ pub fn dummy_ethernet
     (channel, interface, inject_handle, read_handle)
 }
 
-// pub fn dummy_stack
-//     ()
-// -> (NetworkStack, Interface, Sender<io::Result<Box<[u8]>>>,
-// Receiver<Box<[u8]>>)
-// {
-//     let (channel, interface, inject_handle, read_handle) = dummy_ethernet();
-//     let mut stack = NetworkStack::new();
-//     stack.add_interface(interface.clone(), channel)
-//         .expect("Not able to add dummy channel to stack");
-//     (stack, interface, inject_handle, read_handle)
-// }
+pub fn dummy_stack
+    ()
+    -> (NetworkStack, Interface, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>)
+{
+    let (channel, interface, inject_handle, read_handle) = dummy_ethernet();
+    let mut stack = NetworkStack::new();
+    stack.add_interface(interface.clone(), channel)
+        .expect("Not able to add dummy channel to stack");
+    (stack, interface, inject_handle, read_handle)
+}
 
 // pub fn dummy_icmp()
 //     -> (Ethernet,

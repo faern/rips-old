@@ -172,6 +172,7 @@
 extern crate rand;
 extern crate pnet;
 extern crate ipnetwork;
+extern crate lru;
 #[macro_use]
 extern crate lazy_static;
 
@@ -277,17 +278,18 @@ pub trait Tx {
     fn send<P: Payload>(&mut self, payload: P) -> TxResult<()>;
 }
 
-pub trait ProtocolStack<I, O: Payload> {
-    fn create_builder(&mut self, input: I) -> O;
-}
+// pub trait ProtocolStack<I, O: Payload> {
+//     fn create_builder(&mut self, input: I) -> O;
+// }
 
-use ethernet::{EthernetTx, EthernetPayload, EthernetBuilder};
+// use ethernet::{EthernetTx, EthernetPayload, EthernetBuilder};
 
-impl<P: EthernetPayload> ProtocolStack<P, EthernetBuilder<P>> for EthernetTx {
-    fn create_builder(&mut self, input: P) -> EthernetBuilder<P> {
-        EthernetTx::send(self, input)
-    }
-}
+// impl<'p, P: EthernetPayload> ProtocolStack<P, EthernetBuilder<'p, P>> for
+// EthernetTx {
+//     fn create_builder(&mut self, input: P) -> EthernetBuilder<'p, P> {
+//         EthernetTx::send(self, input)
+//     }
+// }
 
 // impl<P: Protocol> ProtocolTx<P> {
 //     pub fn send(&mut self, input: P::Input) -> TxResult<()> {

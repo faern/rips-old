@@ -1,10 +1,12 @@
 use {EthernetChannel, Interface, RoutingTable, TxError, TxResult, Tx, Payload};
 use StackError;
-use arp::{self, ArpTx, ArpTable};
-use ethernet::{EthernetRx, EthernetTx, MacAddr};
+use arp::{self, ArpTx, ArpTable, ArpPayload};
+use ethernet::{EthernetRx, EthernetTx, MacAddr, EthernetPayload};
 // use icmp::{self, IcmpTx};
 
 use ipnetwork::Ipv4Network;
+
+use lru::LruCache;
 // use ipv4::{self, Ipv4TxImpl};
 
 use pnet::datalink::EthernetDataLinkSender;
@@ -53,39 +55,116 @@ impl StackInterfaceData {
         DatalinkTx::new(self.tx.clone(), version)
     }
 
-    pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTx {
+    fn ethernet_tx(&self, dst: MacAddr) -> EthernetTx {
         EthernetTx::new(self.interface.mac, dst)
     }
 
-    pub fn arp_tx(&self) -> ArpTx {
+    fn arp_tx(&self) -> ArpTx {
         ArpTx::new()
     }
 }
 
-use ethernet::EthernetPayload;
-
 pub struct EthernetSender {
     interface: Arc<StackInterfaceData>,
     dst: MacAddr,
+    tx: Option<EthernetSenderTxes>,
+}
+
+struct EthernetSenderTxes {
     tx: DatalinkTx,
     ethernet_tx: EthernetTx,
 }
 
 impl EthernetSender {
     fn new(interface: Arc<StackInterfaceData>, dst: MacAddr) -> Self {
-        let ethernet_tx = interface.ethernet_tx(dst);
-        let tx = interface.tx();
         EthernetSender {
             interface: interface,
             dst: dst,
-            tx: tx,
-            ethernet_tx: ethernet_tx,
+            tx: None,
         }
     }
 
     pub fn send<P: EthernetPayload>(&mut self, mut payload: P) -> TxResult<()> {
-        let ethernet_payload = self.ethernet_tx.send(payload);
-        self.tx.send(ethernet_payload)
+        loop {
+            match self.internal_send(&mut payload) {
+                Err(TxError::InvalidTx) => self.create_tx(),
+                result => return result,
+            }
+        }
+    }
+
+    fn internal_send<P: EthernetPayload>(&mut self, payload: &mut P) -> TxResult<()> {
+        if let Some(txes) = self.tx.as_mut() {
+            let ethernet_payload = txes.ethernet_tx.send(payload);
+            txes.tx.send(ethernet_payload)
+        } else {
+            Err(TxError::InvalidTx)
+        }
+    }
+
+    fn create_tx(&mut self) {
+        let tx = self.interface.tx();
+        let ethernet_tx = self.interface.ethernet_tx(self.dst);
+        self.tx = Some(EthernetSenderTxes {
+            tx: tx,
+            ethernet_tx: ethernet_tx,
+        });
+    }
+}
+
+pub struct ArpSender {
+    interface: Arc<StackInterfaceData>,
+    tx: DatalinkTx,
+    ethernet_tx_cache: LruCache<MacAddr, EthernetTx>,
+    arp_tx: ArpTx,
+}
+
+impl ArpSender {
+    fn new(interface: Arc<StackInterfaceData>) -> Self {
+        let tx = interface.tx();
+        let arp_tx = interface.arp_tx();
+        ArpSender {
+            interface: interface,
+            tx: tx,
+            ethernet_tx_cache: LruCache::new(10),
+            arp_tx: arp_tx,
+        }
+    }
+
+    pub fn send<P: ArpPayload>(&mut self, mut payload: P) -> TxResult<()> {
+        let target_mac = self.target_mac(&payload);
+        loop {
+            match self.internal_send(target_mac, &mut payload) {
+                Err(TxError::InvalidTx) => self.create_tx(target_mac),
+                result => return result,
+            }
+        }
+    }
+
+    fn internal_send<P: ArpPayload>(&mut self,
+                                    target_mac: MacAddr,
+                                    payload: &mut P)
+                                    -> TxResult<()> {
+        if !self.ethernet_tx_cache.contains(&target_mac) {
+            let ethernet_tx = self.interface.ethernet_tx(target_mac);
+            self.ethernet_tx_cache.put(target_mac, ethernet_tx);
+        }
+        let ethernet_tx = self.ethernet_tx_cache.get(&target_mac).unwrap();
+        Ok(())
+    }
+
+    fn create_tx(&mut self, target_mac: MacAddr) {
+        self.ethernet_tx_cache = LruCache::new(10);
+        self.tx = self.interface.tx();
+        let ethernet_tx = self.interface.ethernet_tx(target_mac);
+        self.ethernet_tx_cache.put(target_mac, ethernet_tx);
+    }
+
+    fn target_mac<P: ArpPayload>(&self, payload: &P) -> MacAddr {
+        match payload.target_mac() {
+            MacAddr(0, 0, 0, 0, 0, 0) => MacAddr(0xff, 0xff, 0xff, 0xff, 0xff, 0xff),
+            mac => mac,
+        }
     }
 }
 
@@ -216,13 +295,13 @@ impl StackInterface {
         &self.data.interface
     }
 
-    // pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTx {
-    //     self.data.ethernet_tx(dst)
-    // }
+    pub fn ethernet_sender(&self, dst: MacAddr) -> EthernetSender {
+        EthernetSender::new(self.data.clone(), dst)
+    }
 
-    // pub fn arp_request_tx(&self) -> ArpRequestTx {
-    //     self.data.arp_request_tx()
-    // }
+    pub fn arp_sender(&self) -> ArpSender {
+        ArpSender::new(self.data.clone())
+    }
 
     pub fn arp_table(&mut self) -> &mut arp::ArpTable {
         &mut self.arp_table
@@ -531,7 +610,7 @@ impl DatalinkTx {
 }
 
 impl Tx for DatalinkTx {
-    fn send<P: Payload>(&mut self, mut payload: P) -> TxResult<()> {
+    fn send<P: Payload>(&mut self, payload: P) -> TxResult<()> {
         let mut tx = self.tx.lock().expect("Poisoned lock in stack. This is a Rips bug");
         if self.version != tx.version() {
             Err(TxError::InvalidTx)
@@ -619,4 +698,13 @@ pub fn default_stack() -> StackResult<NetworkStack> {
         }
     }
     Ok(stack)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lol() {}
 }
