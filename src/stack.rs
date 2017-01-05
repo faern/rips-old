@@ -17,6 +17,7 @@ use rand;
 use rand::distributions::{IndependentSample, Range};
 use rx;
 
+use std::cmp;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
 use std::io;
@@ -182,11 +183,9 @@ pub struct StackInterface {
 
 impl StackInterface {
     pub fn new(interface: Interface, channel: EthernetChannel) -> StackInterface {
-        let EthernetChannel(sender, receiver) = channel;
-
         let stack_interface_data = Arc::new(StackInterfaceData {
             interface: interface,
-            tx: Arc::new(Mutex::new(TxBarrier::new(sender))),
+            tx: Arc::new(Mutex::new(TxBarrier::new(channel.sender, channel.write_buffer_size))),
             ipv4_addresses: RwLock::new(HashSet::new()),
         });
 
@@ -202,7 +201,7 @@ impl StackInterface {
 
         let ethernet_listeners = vec![arp_rx /* , ipv4_rx */];
         let ethernet_rx = EthernetRx::new(ethernet_listeners);
-        rx::spawn(receiver, ethernet_rx);
+        rx::spawn(channel.receiver, ethernet_rx);
 
         StackInterface {
             data: stack_interface_data,
@@ -544,13 +543,15 @@ impl Tx for DatalinkTx {
 
 pub struct TxBarrier {
     tx: Box<EthernetDataLinkSender>,
+    cache_size: usize,
     version: u64,
 }
 
 impl TxBarrier {
-    pub fn new(tx: Box<EthernetDataLinkSender>) -> TxBarrier {
+    pub fn new(tx: Box<EthernetDataLinkSender>, cache_size: usize) -> TxBarrier {
         TxBarrier {
             tx: tx,
+            cache_size: cache_size,
             version: 0,
         }
     }
@@ -576,13 +577,19 @@ impl TxBarrier {
 
 impl Tx for TxBarrier {
     fn send<P: Payload>(&mut self, mut payload: P) -> TxResult<()> {
-        let num_packets = payload.num_packets();
+        let mut packets_left = payload.num_packets();
         let packet_size = payload.packet_size();
+        let max_packets_per_call = self.cache_size / packet_size;
         let mut eth_payload = |mut packet: MutableEthernetPacket| {
             payload.build(packet.packet_mut());
         };
-        let result = self.tx.build_and_send(num_packets, packet_size, &mut eth_payload);
-        self.io_result_to_tx_result(result)
+        while packets_left > 0 {
+            let num_packets = cmp::min(packets_left, max_packets_per_call);
+            let result = self.tx.build_and_send(num_packets, packet_size, &mut eth_payload);
+            self.io_result_to_tx_result(result)?;
+            packets_left -= num_packets;
+        }
+        Ok(())
     }
 }
 
@@ -598,7 +605,14 @@ pub fn default_stack() -> StackResult<NetworkStack> {
             config.read_buffer_size = DEFAULT_BUFFER_SIZE;
             let channel = match try!(datalink::channel(&interface, config)
                 .map_err(StackError::from)) {
-                datalink::Channel::Ethernet(tx, rx) => EthernetChannel(tx, rx),
+                datalink::Channel::Ethernet(tx, rx) => {
+                    EthernetChannel {
+                        sender: tx,
+                        write_buffer_size: config.write_buffer_size,
+                        receiver: rx,
+                        read_buffer_size: config.read_buffer_size,
+                    }
+                }
                 _ => unreachable!(),
             };
             try!(stack.add_interface(rips_interface, channel));

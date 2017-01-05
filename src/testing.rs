@@ -21,7 +21,14 @@ pub fn dummy_ethernet
     let inject_handle = config.inject_handle().unwrap();
 
     let channel = match dummy::channel(&iface, config).unwrap() {
-        Channel::Ethernet(tx, rx) => EthernetChannel(tx, rx),
+        Channel::Ethernet(tx, rx) => {
+            EthernetChannel {
+                sender: tx,
+                write_buffer_size: 4069,
+                receiver: rx,
+                read_buffer_size: 4096,
+            }
+        }
         _ => panic!("Invalid channel type returned"),
     };
 

@@ -258,8 +258,12 @@ impl Interface {
 /// Represents the channel used for sending to and reading from one network
 /// interface. Basically a simplification of `pnet::datalink::Channel` but
 /// guaranteed to be be ethernet.
-pub struct EthernetChannel(pub Box<datalink::EthernetDataLinkSender>,
-                           pub Box<datalink::EthernetDataLinkReceiver>);
+pub struct EthernetChannel {
+    pub sender: Box<datalink::EthernetDataLinkSender>,
+    pub write_buffer_size: usize,
+    pub receiver: Box<datalink::EthernetDataLinkReceiver>,
+    pub read_buffer_size: usize,
+}
 
 
 /// Type binding for the type of `Result` that a send method returns.
