@@ -35,13 +35,19 @@ pub trait Payload {
 #[derive(Clone)]
 pub struct BasicPayload<'a> {
     offset: usize,
+    packet_size: usize,
     payload: &'a [u8],
 }
 
 impl<'a> BasicPayload<'a> {
     pub fn new(payload: &'a [u8]) -> Self {
+        Self::with_packet_size(payload.len(), payload)
+    }
+
+    pub fn with_packet_size(packet_size: usize, payload: &'a [u8]) -> Self {
         BasicPayload {
             offset: 0,
+            packet_size: packet_size,
             payload: payload,
         }
     }
@@ -49,11 +55,15 @@ impl<'a> BasicPayload<'a> {
 
 impl<'a> Payload for BasicPayload<'a> {
     fn num_packets(&self) -> usize {
-        if self.payload.is_empty() { 0 } else { 1 }
+        if self.payload.len() == 0 || self.packet_size == 0 {
+            1
+        } else {
+            (self.payload.len() + self.packet_size - 1) / self.packet_size
+        }
     }
 
     fn packet_size(&self) -> usize {
-        self.payload.len()
+        self.packet_size
     }
 
     fn build(&mut self, buffer: &mut [u8]) {
@@ -91,9 +101,9 @@ mod basic_payload_tests {
     use super::*;
 
     #[test]
-    fn len_zero() {
+    fn no_data() {
         let testee = BasicPayload::new(&[]);
-        assert_eq!(0, testee.num_packets());
+        assert_eq!(1, testee.num_packets());
         assert_eq!(0, testee.packet_size());
     }
 

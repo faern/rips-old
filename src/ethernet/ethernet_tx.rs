@@ -22,9 +22,13 @@ pub struct BasicEthernetPayload<'a> {
 
 impl<'a> BasicEthernetPayload<'a> {
     pub fn new(ether_type: EtherType, payload: &'a [u8]) -> Self {
+        Self::from_payload(ether_type, BasicPayload::new(payload))
+    }
+
+    pub fn from_payload(ether_type: EtherType, payload: BasicPayload<'a>) -> Self {
         BasicEthernetPayload {
             ether_type: ether_type,
-            payload: BasicPayload::new(payload),
+            payload: payload,
         }
     }
 }
