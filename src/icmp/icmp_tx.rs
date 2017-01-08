@@ -78,7 +78,6 @@ impl<T: Ipv4Tx> IcmpTx<T> {
     /// Sends an Echo Request packet (ping) with the given payload.
     pub fn send_echo(&mut self, payload: &[u8]) -> TxResult {
         let builder = PingBuilder::new(payload);
-        println!("PingBuilder has len {}", builder.len());
         self.send(builder)
     }
 }
