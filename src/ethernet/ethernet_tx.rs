@@ -98,30 +98,6 @@ mod ethernet_tx_tests {
 
     use super::*;
 
-    // pub struct MockTx {
-    //     chan: Sender<Box<[u8]>>,
-    // }
-
-    // impl MockTx {
-    //     pub fn new() -> (Self, Receiver<Box<[u8]>>) {
-    //         let (tx, rx) = mpsc::channel();
-    //         (MockTx { chan: tx }, rx)
-    //     }
-    // }
-
-    // impl Tx for MockTx {
-    //     fn send<P: Payload>(&mut self, mut payload: P) -> TxResult<()> {
-    //         for _ in 0..payload.num_packets() {
-    //             let mut buffer = vec![0; payload.packet_size()];
-    //             payload.build(&mut buffer);
-    //             self.chan
-    //                 .send(buffer.into_boxed_slice())
-    //                 .map_err(|e| TxError::Other(e.description().to_owned()))?;
-    //         }
-    //         Ok(())
-    //     }
-    // }
-
     lazy_static! {
         static ref SRC: MacAddr = MacAddr::new(0, 0, 0, 0, 0, 1);
         static ref DST: MacAddr = MacAddr::new(0, 0, 0, 0, 0, 2);
