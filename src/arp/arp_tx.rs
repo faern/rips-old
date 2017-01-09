@@ -1,6 +1,6 @@
 use {Payload, TxResult, DatalinkTx, Tx};
 use ethernet::{EtherType, EtherTypes, MacAddr};
-use ethernet::{EthernetPayload, EthernetTx};
+use ethernet::{EthernetFields, EthernetTx};
 
 use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpOperation, ArpPacket, MutableArpPacket};
 
@@ -109,6 +109,7 @@ impl ArpTx {
     }
 }
 
+
 pub struct ArpBuilder<'p, P: ArpPayload + 'p> {
     payload: &'p mut P,
 }
@@ -119,13 +120,12 @@ impl<'p, P: ArpPayload> ArpBuilder<'p, P> {
     }
 }
 
-impl<'p, P: ArpPayload> EthernetPayload for ArpBuilder<'p, P> {
-    fn ether_type(&self) -> EtherType {
-        EtherTypes::Arp
+impl<'p, P: ArpPayload> Payload<EthernetFields> for ArpBuilder<'p, P> {
+    fn fields(&self) -> &EthernetFields {
+        static FIELDS: EthernetFields = EthernetFields(EtherTypes::Arp);
+        &FIELDS
     }
-}
 
-impl<'p, P: ArpPayload> Payload for ArpBuilder<'p, P> {
     fn num_packets(&self) -> usize {
         1
     }

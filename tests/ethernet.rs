@@ -4,7 +4,8 @@ extern crate rips;
 use pnet::packet::Packet;
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket};
 
-use rips::ethernet::{BasicEthernetPayload, MacAddr};
+use rips::CustomPayload;
+use rips::ethernet::{MacAddr, EthernetFields};
 use rips::testing;
 
 #[test]
@@ -16,7 +17,7 @@ fn test_ethernet_send() {
 
     let mut ethernet_sender = stack_interface.ethernet_sender(dst);
     let data = &[57];
-    let payload = BasicEthernetPayload::new(EtherTypes::Rarp, data);
+    let payload = CustomPayload::new(EthernetFields(EtherTypes::Rarp), data);
 
     ethernet_sender.send(payload).expect("Not able to send");
 

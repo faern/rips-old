@@ -1,69 +1,13 @@
-use {Payload, HasPayload, BasicPayload};
+use {Payload, CustomPayload};
 
 use pnet::packet::MutablePacket;
 use pnet::packet::ethernet::{EthernetPacket, MutableEthernetPacket};
 
 use super::{MacAddr, EtherType};
 
-/// Trait for anything wishing to be the payload of an Ethernet frame.
-pub trait EthernetPayload: Payload {
-    fn ether_type(&self) -> EtherType;
-}
+#[derive(Clone, Copy)]
+pub struct EthernetFields(pub EtherType);
 
-
-/// Basic reference implementation of an `EthernetPayload`.
-/// Can be used to construct Ethernet frames with arbitrary payload from a
-/// vector.
-#[derive(Clone)]
-pub struct BasicEthernetPayload<'a> {
-    ether_type: EtherType,
-    payload: BasicPayload<'a>,
-}
-
-impl<'a> BasicEthernetPayload<'a> {
-    pub fn new(ether_type: EtherType, payload: &'a [u8]) -> Self {
-        Self::from_payload(ether_type, BasicPayload::new(payload))
-    }
-
-    pub fn from_payload(ether_type: EtherType, payload: BasicPayload<'a>) -> Self {
-        BasicEthernetPayload {
-            ether_type: ether_type,
-            payload: payload,
-        }
-    }
-}
-
-impl<'a> EthernetPayload for BasicEthernetPayload<'a> {
-    fn ether_type(&self) -> EtherType {
-        self.ether_type
-    }
-}
-
-impl<'a> HasPayload for BasicEthernetPayload<'a> {
-    fn get_payload(&self) -> &Payload {
-        &self.payload
-    }
-
-    fn get_payload_mut(&mut self) -> &mut Payload {
-        &mut self.payload
-    }
-}
-
-#[cfg(test)]
-mod basic_ethernet_payload_tests {
-    use Payload;
-    use pnet::packet::ethernet::EtherTypes;
-    use super::*;
-
-    #[test]
-    fn ether_type() {
-        let testee = BasicEthernetPayload::new(EtherTypes::Ipv6, &[]);
-        assert_eq!(EtherTypes::Ipv6, testee.ether_type());
-
-        let testee = BasicEthernetPayload::new(EtherTypes::Arp, &[]);
-        assert_eq!(EtherTypes::Arp, testee.ether_type());
-    }
-}
 
 #[derive(Clone)]
 pub struct EthernetTx {
@@ -87,20 +31,22 @@ impl EthernetTx {
         self.dst
     }
 
-    pub fn send<'p, P: EthernetPayload>(&self, payload: &'p mut P) -> EthernetBuilder<'p, P> {
+    pub fn send<'p, P>(&self, payload: &'p mut P) -> EthernetBuilder<'p, P>
+        where P: Payload<EthernetFields>
+    {
         EthernetBuilder::new(self.src, self.dst, payload)
     }
 }
 
 
 /// Struct building Ethernet frames
-pub struct EthernetBuilder<'p, P: EthernetPayload + 'p> {
+pub struct EthernetBuilder<'p, P: Payload<EthernetFields> + 'p> {
     src: MacAddr,
     dst: MacAddr,
     payload: &'p mut P,
 }
 
-impl<'p, P: EthernetPayload> EthernetBuilder<'p, P> {
+impl<'p, P: Payload<EthernetFields>> EthernetBuilder<'p, P> {
     /// Creates a new `EthernetBuilder` with the given parameters
     pub fn new(src: MacAddr, dst: MacAddr, payload: &'p mut P) -> Self {
         EthernetBuilder {
@@ -111,7 +57,12 @@ impl<'p, P: EthernetPayload> EthernetBuilder<'p, P> {
     }
 }
 
-impl<'p, P: EthernetPayload> Payload for EthernetBuilder<'p, P> {
+impl<'p, P: Payload<EthernetFields>> Payload<()> for EthernetBuilder<'p, P> {
+    fn fields(&self) -> &() {
+        static FIELDS: () = ();
+        &FIELDS
+    }
+
     fn num_packets(&self) -> usize {
         self.payload.num_packets()
     }
@@ -124,7 +75,7 @@ impl<'p, P: EthernetPayload> Payload for EthernetBuilder<'p, P> {
         let mut pkg = MutableEthernetPacket::new(buffer).unwrap();
         pkg.set_source(self.src);
         pkg.set_destination(self.dst);
-        pkg.set_ethertype(self.payload.ether_type());
+        pkg.set_ethertype(self.payload.fields().0);
         self.payload.build(pkg.payload_mut());
     }
 }
@@ -182,7 +133,7 @@ mod ethernet_tx_tests {
     #[test]
     fn send() {
         let data = &[8, 7, 6];
-        let mut payload = BasicEthernetPayload::new(EtherTypes::Arp, data);
+        let mut payload = CustomPayload::new(EthernetFields(EtherTypes::Arp), data);
 
         let mut testee = EthernetTx::new(*SRC, *DST);
         let mut ethernet_builder = testee.send(&mut payload);

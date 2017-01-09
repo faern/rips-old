@@ -191,7 +191,7 @@ mod errors;
 pub use errors::*;
 
 mod payload;
-pub use payload::{Payload, BasicPayload, HasPayload};
+pub use payload::{Payload, CustomPayload};
 
 pub mod rx;
 
@@ -274,8 +274,8 @@ pub type TxResult<T> = Result<T, TxError>;
 pub type RxResult = Result<(), RxError>;
 
 
-pub trait Tx {
-    fn send<P: Payload>(&mut self, payload: P) -> TxResult<()>;
+pub trait Tx<RequiredFields> {
+    fn send<P: Payload<RequiredFields>>(&mut self, payload: P) -> TxResult<()>;
 }
 
 // pub trait ProtocolStack<I, O: Payload> {

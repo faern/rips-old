@@ -2,15 +2,13 @@ use std::cmp;
 
 /// Super trait to any payload. Represents any type that can become the payload
 /// of a packet.
-pub trait Payload {
+pub trait Payload<ParentFields> {
+    fn fields(&self) -> &ParentFields;
+
     fn num_packets(&self) -> usize;
 
     fn packet_size(&self) -> usize;
 
-    /// Returns how many bytes this payload will occupy in total.
-    /// Returns the same length on every call, does not vary as it is being
-    /// consumed by calls to the `build` method.
-    // fn len(&self) -> usize;
     /// Construct some bytes of this `Payload` into the given `buffer`. If
     /// `buffer` is smaller than the remaining length of this `Payload` it will
     /// fill `buffer` and keep the remaining data for subsequent calls to
@@ -33,19 +31,24 @@ pub trait Payload {
 }
 
 #[derive(Clone)]
-pub struct BasicPayload<'a> {
+pub struct CustomPayload<'a, ParentFields> {
+    parent_fields: ParentFields,
     offset: usize,
     packet_size: usize,
     payload: &'a [u8],
 }
 
-impl<'a> BasicPayload<'a> {
-    pub fn new(payload: &'a [u8]) -> Self {
-        Self::with_packet_size(payload.len(), payload)
+impl<'a, ParentFields> CustomPayload<'a, ParentFields> {
+    pub fn new(parent_fields: ParentFields, payload: &'a [u8]) -> Self {
+        Self::with_packet_size(parent_fields, payload.len(), payload)
     }
 
-    pub fn with_packet_size(packet_size: usize, payload: &'a [u8]) -> Self {
-        BasicPayload {
+    pub fn with_packet_size(parent_fields: ParentFields,
+                            packet_size: usize,
+                            payload: &'a [u8])
+                            -> Self {
+        CustomPayload {
+            parent_fields: parent_fields,
             offset: 0,
             packet_size: packet_size,
             payload: payload,
@@ -53,7 +56,11 @@ impl<'a> BasicPayload<'a> {
     }
 }
 
-impl<'a> Payload for BasicPayload<'a> {
+impl<'a, ParentFields> Payload<ParentFields> for CustomPayload<'a, ParentFields> {
+    fn fields(&self) -> &ParentFields {
+        &self.parent_fields
+    }
+
     fn num_packets(&self) -> usize {
         if self.payload.len() == 0 || self.packet_size == 0 {
             1
@@ -74,35 +81,15 @@ impl<'a> Payload for BasicPayload<'a> {
     }
 }
 
-pub trait HasPayload {
-    fn get_payload(&self) -> &Payload;
-    fn get_payload_mut(&mut self) -> &mut Payload;
-}
-
-impl<T> Payload for T
-    where T: HasPayload
-{
-    fn num_packets(&self) -> usize {
-        self.get_payload().num_packets()
-    }
-
-    fn packet_size(&self) -> usize {
-        self.get_payload().packet_size()
-    }
-
-    fn build(&mut self, buffer: &mut [u8]) {
-        self.get_payload_mut().build(buffer)
-    }
-}
 
 #[cfg(test)]
-mod basic_payload_tests {
+mod custom_payload_tests {
     use Payload;
     use super::*;
 
     #[test]
     fn no_data() {
-        let testee = BasicPayload::new(&[]);
+        let testee = CustomPayload::new((), &[]);
         assert_eq!(1, testee.num_packets());
         assert_eq!(0, testee.packet_size());
     }
@@ -110,14 +97,14 @@ mod basic_payload_tests {
     #[test]
     fn len_three() {
         let data = &[5, 6, 7];
-        let testee = BasicPayload::new(data);
+        let testee = CustomPayload::new((), data);
         assert_eq!(1, testee.num_packets());
         assert_eq!(3, testee.packet_size());
     }
 
     #[test]
     fn build_without_data() {
-        let mut testee = BasicPayload::new(&[]);
+        let mut testee = CustomPayload::new((), &[]);
         let mut buffer = vec![99; 1];
         testee.build(&mut buffer);
         assert_eq!(99, buffer[0]);
@@ -126,7 +113,7 @@ mod basic_payload_tests {
     #[test]
     fn build_with_data() {
         let data = &[5, 6, 7];
-        let mut testee = BasicPayload::new(data);
+        let mut testee = CustomPayload::new((), data);
         let mut buffer = vec![0; 1];
         testee.build(&mut buffer[0..0]);
 
@@ -143,9 +130,23 @@ mod basic_payload_tests {
     #[test]
     fn build_with_larger_buffer() {
         let data = &[5, 6];
-        let mut testee = BasicPayload::new(data);
+        let mut testee = CustomPayload::new((), data);
         let mut buffer = vec![0; 3];
         testee.build(&mut buffer);
         assert_eq!(&[5, 6, 0], &buffer[..]);
+    }
+
+    #[test]
+    fn fields() {
+        use ethernet::{EthernetFields, EtherTypes};
+
+        let testee = CustomPayload::new(EthernetFields(EtherTypes::Ipv6), &[]);
+        assert_eq!(EtherTypes::Ipv6, testee.fields().0);
+
+        let testee = CustomPayload::new(EthernetFields(EtherTypes::Arp), &[]);
+        assert_eq!(EtherTypes::Arp, testee.fields().0);
+
+        let testee = CustomPayload::new((), &[]);
+        assert_eq!((), *testee.fields());
     }
 }

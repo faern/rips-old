@@ -1,7 +1,7 @@
 use {EthernetChannel, Interface, RoutingTable, TxError, TxResult, Tx, Payload};
 use StackError;
 use arp::{self, ArpTx, ArpTable, ArpPayload};
-use ethernet::{EthernetRx, EthernetTx, MacAddr, EthernetPayload};
+use ethernet::{EthernetRx, EthernetTx, MacAddr, EthernetFields};
 // use icmp::{self, IcmpTx};
 
 use ipnetwork::Ipv4Network;
@@ -84,7 +84,9 @@ impl EthernetSender {
         }
     }
 
-    pub fn send<P: EthernetPayload>(&mut self, mut payload: P) -> TxResult<()> {
+    pub fn send<P>(&mut self, mut payload: P) -> TxResult<()>
+        where P: Payload<EthernetFields>
+    {
         loop {
             match self.internal_send(&mut payload) {
                 None => self.create_tx(),
@@ -93,7 +95,9 @@ impl EthernetSender {
         }
     }
 
-    fn internal_send<P: EthernetPayload>(&mut self, payload: &mut P) -> Option<TxResult<()>> {
+    fn internal_send<P>(&mut self, payload: &mut P) -> Option<TxResult<()>>
+        where P: Payload<EthernetFields>
+    {
         self.tx.as_mut().and_then(|txes| {
             let ethernet_payload = txes.ethernet_tx.send(payload);
             txes.tx.send(ethernet_payload)
@@ -607,7 +611,7 @@ impl DatalinkTx {
         }
     }
 
-    fn send<P: Payload>(&mut self, payload: P) -> Option<TxResult<()>> {
+    fn send<P: Payload<()>>(&mut self, payload: P) -> Option<TxResult<()>> {
         let mut tx = self.tx.lock().expect("Poisoned lock in stack. This is a Rips bug");
         if self.version != tx.version() {
             None
@@ -644,8 +648,8 @@ impl TxBarrier {
     }
 }
 
-impl Tx for TxBarrier {
-    fn send<P: Payload>(&mut self, mut payload: P) -> TxResult<()> {
+impl Tx<()> for TxBarrier {
+    fn send<P: Payload<()>>(&mut self, mut payload: P) -> TxResult<()> {
         let mut packets_left = payload.num_packets();
         let packet_size = payload.packet_size();
         let max_packets_per_call = self.cache_size / packet_size;
