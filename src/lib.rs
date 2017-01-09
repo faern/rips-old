@@ -274,8 +274,9 @@ pub type TxResult<T> = Result<T, TxError>;
 pub type RxResult = Result<(), RxError>;
 
 
-pub trait Tx<RequiredFields> {
-    fn send<P: Payload<RequiredFields>>(&mut self, payload: P) -> TxResult<()>;
+pub trait Tx<RequiredFields>: Clone {
+    fn send<'p, P>(&mut self, payload: &'p mut P) -> Option<TxResult<()>>
+        where P: Payload<RequiredFields>;
 }
 
 // pub trait ProtocolStack<I, O: Payload> {

@@ -12,7 +12,7 @@ mod arp_rx;
 mod arp_tx;
 
 pub use self::arp_rx::ArpRx;
-pub use self::arp_tx::{ArpBuilder, ArpTx, ArpPayload, ArpRequest, ArpReply};
+pub use self::arp_tx::{ArpBuilder, ArpTx, ArpFields};
 
 #[derive(Default)]
 pub struct TableData {

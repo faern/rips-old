@@ -1,4 +1,4 @@
-use {Payload, CustomPayload};
+use {Payload, CustomPayload, Tx, TxResult};
 
 use pnet::packet::MutablePacket;
 use pnet::packet::ethernet::{EthernetPacket, MutableEthernetPacket};
@@ -10,16 +10,18 @@ pub struct EthernetFields(pub EtherType);
 
 
 #[derive(Clone)]
-pub struct EthernetTx {
+pub struct EthernetTx<T> {
     src: MacAddr,
     dst: MacAddr,
+    tx: T,
 }
 
-impl EthernetTx {
-    pub fn new(src: MacAddr, dst: MacAddr) -> Self {
+impl<T> EthernetTx<T> {
+    pub fn new(src: MacAddr, dst: MacAddr, tx: T) -> Self {
         EthernetTx {
             src: src,
             dst: dst,
+            tx: tx,
         }
     }
 
@@ -30,16 +32,18 @@ impl EthernetTx {
     pub fn dst(&self) -> MacAddr {
         self.dst
     }
+}
 
-    pub fn send<'p, P>(&self, payload: &'p mut P) -> EthernetBuilder<'p, P>
+impl<T: Tx<()>> Tx<EthernetFields> for EthernetTx<T> {
+    fn send<'p, P>(&mut self, payload: &'p mut P) -> Option<TxResult<()>>
         where P: Payload<EthernetFields>
     {
-        EthernetBuilder::new(self.src, self.dst, payload)
+        let mut builder = EthernetBuilder::new(self.src, self.dst, payload);
+        self.tx.send(&mut builder)
     }
 }
 
 
-/// Struct building Ethernet frames
 pub struct EthernetBuilder<'p, P: Payload<EthernetFields> + 'p> {
     src: MacAddr,
     dst: MacAddr,
@@ -125,23 +129,22 @@ mod ethernet_tx_tests {
 
     #[test]
     fn src_dst() {
-        let testee = EthernetTx::new(*SRC, *DST);
+        let testee = EthernetTx::new(*SRC, *DST, ());
         assert_eq!(*SRC, testee.src());
         assert_eq!(*DST, testee.dst());
     }
 
     #[test]
-    fn send() {
+    fn ethernet_builder() {
         let data = &[8, 7, 6];
         let mut payload = CustomPayload::new(EthernetFields(EtherTypes::Arp), data);
 
-        let mut testee = EthernetTx::new(*SRC, *DST);
-        let mut ethernet_builder = testee.send(&mut payload);
+        let mut testee = EthernetBuilder::new(*SRC, *DST, &mut payload);
 
-        assert_eq!(1, ethernet_builder.num_packets());
-        assert_eq!(17, ethernet_builder.packet_size());
+        assert_eq!(1, testee.num_packets());
+        assert_eq!(17, testee.packet_size());
         let mut buffer = vec![0; 1024];
-        ethernet_builder.build(&mut buffer);
+        testee.build(&mut buffer);
 
         let pkg = EthernetPacket::new(&buffer).unwrap();
         assert_eq!(*SRC, pkg.get_source());

@@ -6,93 +6,37 @@ use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpOperation, ArpPacket
 
 use std::net::Ipv4Addr;
 
-pub trait ArpPayload {
-    fn operation(&self) -> ArpOperation;
-    fn sender_mac(&self) -> MacAddr;
-    fn sender_ip(&self) -> Ipv4Addr;
-    fn target_mac(&self) -> MacAddr;
-    fn target_ip(&self) -> Ipv4Addr;
+pub struct ArpFields {
+    pub operation: ArpOperation,
+    pub sender_mac: MacAddr,
+    pub sender_ip: Ipv4Addr,
+    pub target_mac: MacAddr,
+    pub target_ip: Ipv4Addr,
 }
 
-pub struct ArpRequest {
-    sender_mac: MacAddr,
-    sender_ip: Ipv4Addr,
-    target_ip: Ipv4Addr,
-}
-
-impl ArpRequest {
-    pub fn new(sender_mac: MacAddr, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> Self {
-        ArpRequest {
+impl ArpFields {
+    pub fn request(sender_mac: MacAddr, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> Self {
+        ArpFields {
+            operation: ArpOperations::Request,
             sender_mac: sender_mac,
             sender_ip: sender_ip,
+            target_mac: MacAddr(0, 0, 0, 0, 0, 0),
             target_ip: target_ip,
         }
     }
-}
 
-impl ArpPayload for ArpRequest {
-    fn operation(&self) -> ArpOperation {
-        ArpOperations::Request
-    }
-
-    fn sender_mac(&self) -> MacAddr {
-        self.sender_mac
-    }
-
-    fn sender_ip(&self) -> Ipv4Addr {
-        self.sender_ip
-    }
-
-    fn target_mac(&self) -> MacAddr {
-        MacAddr(0, 0, 0, 0, 0, 0)
-    }
-
-    fn target_ip(&self) -> Ipv4Addr {
-        self.target_ip
-    }
-}
-
-pub struct ArpReply {
-    sender_mac: MacAddr,
-    sender_ip: Ipv4Addr,
-    target_mac: MacAddr,
-    target_ip: Ipv4Addr,
-}
-
-impl ArpReply {
-    pub fn new(sender_mac: MacAddr,
-               sender_ip: Ipv4Addr,
-               target_mac: MacAddr,
-               target_ip: Ipv4Addr)
-               -> Self {
-        ArpReply {
+    pub fn reply(sender_mac: MacAddr,
+                 sender_ip: Ipv4Addr,
+                 target_mac: MacAddr,
+                 target_ip: Ipv4Addr)
+                 -> Self {
+        ArpFields {
+            operation: ArpOperations::Reply,
             sender_mac: sender_mac,
             sender_ip: sender_ip,
             target_mac: target_mac,
             target_ip: target_ip,
         }
-    }
-}
-
-impl ArpPayload for ArpReply {
-    fn operation(&self) -> ArpOperation {
-        ArpOperations::Reply
-    }
-
-    fn sender_mac(&self) -> MacAddr {
-        self.sender_mac
-    }
-
-    fn sender_ip(&self) -> Ipv4Addr {
-        self.sender_ip
-    }
-
-    fn target_mac(&self) -> MacAddr {
-        self.target_mac
-    }
-
-    fn target_ip(&self) -> Ipv4Addr {
-        self.target_ip
     }
 }
 
@@ -104,23 +48,25 @@ impl ArpTx {
         ArpTx(())
     }
 
-    pub fn send<'p, P: ArpPayload>(&self, payload: &'p mut P) -> ArpBuilder<'p, P> {
+    pub fn send<'p, P>(&self, payload: &'p mut P) -> ArpBuilder<'p, P>
+        where P: Payload<ArpFields>
+    {
         ArpBuilder::new(payload)
     }
 }
 
 
-pub struct ArpBuilder<'p, P: ArpPayload + 'p> {
+pub struct ArpBuilder<'p, P: Payload<ArpFields> + 'p> {
     payload: &'p mut P,
 }
 
-impl<'p, P: ArpPayload> ArpBuilder<'p, P> {
+impl<'p, P: Payload<ArpFields>> ArpBuilder<'p, P> {
     pub fn new(payload: &'p mut P) -> Self {
         ArpBuilder { payload: payload }
     }
 }
 
-impl<'p, P: ArpPayload> Payload<EthernetFields> for ArpBuilder<'p, P> {
+impl<'p, P: Payload<ArpFields>> Payload<EthernetFields> for ArpBuilder<'p, P> {
     fn fields(&self) -> &EthernetFields {
         static FIELDS: EthernetFields = EthernetFields(EtherTypes::Arp);
         &FIELDS
@@ -140,10 +86,10 @@ impl<'p, P: ArpPayload> Payload<EthernetFields> for ArpBuilder<'p, P> {
         arp_pkg.set_protocol_type(EtherTypes::Ipv4);
         arp_pkg.set_hw_addr_len(6);
         arp_pkg.set_proto_addr_len(4);
-        arp_pkg.set_operation(self.payload.operation());
-        arp_pkg.set_sender_hw_addr(self.payload.sender_mac());
-        arp_pkg.set_sender_proto_addr(self.payload.sender_ip());
-        arp_pkg.set_target_hw_addr(self.payload.target_mac());
-        arp_pkg.set_target_proto_addr(self.payload.target_ip());
+        arp_pkg.set_operation(self.payload.fields().operation);
+        arp_pkg.set_sender_hw_addr(self.payload.fields().sender_mac);
+        arp_pkg.set_sender_proto_addr(self.payload.fields().sender_ip);
+        arp_pkg.set_target_hw_addr(self.payload.fields().target_mac);
+        arp_pkg.set_target_proto_addr(self.payload.fields().target_ip);
     }
 }
