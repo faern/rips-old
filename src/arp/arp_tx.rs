@@ -2,11 +2,12 @@ use {Payload, TxResult, DatalinkTx, Tx};
 use ethernet::{EtherType, EtherTypes, MacAddr};
 use ethernet::{EthernetFields, EthernetTx};
 
-use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpOperation, ArpPacket, MutableArpPacket};
+use pnet::packet::arp::{ArpHardwareTypes, ArpPacket, MutableArpPacket};
+pub use pnet::packet::arp::{ArpOperation, ArpOperations};
 
 use std::net::Ipv4Addr;
 
-pub struct ArpFields {
+pub struct ArpPayload {
     pub operation: ArpOperation,
     pub sender_mac: MacAddr,
     pub sender_ip: Ipv4Addr,
@@ -14,9 +15,9 @@ pub struct ArpFields {
     pub target_ip: Ipv4Addr,
 }
 
-impl ArpFields {
+impl ArpPayload {
     pub fn request(sender_mac: MacAddr, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> Self {
-        ArpFields {
+        ArpPayload {
             operation: ArpOperations::Request,
             sender_mac: sender_mac,
             sender_ip: sender_ip,
@@ -30,7 +31,7 @@ impl ArpFields {
                  target_mac: MacAddr,
                  target_ip: Ipv4Addr)
                  -> Self {
-        ArpFields {
+        ArpPayload {
             operation: ArpOperations::Reply,
             sender_mac: sender_mac,
             sender_ip: sender_ip,
@@ -40,33 +41,50 @@ impl ArpFields {
     }
 }
 
-
-pub struct ArpTx(());
-
-impl ArpTx {
-    pub fn new() -> Self {
-        ArpTx(())
+impl Payload<ArpPayload> for ArpPayload {
+    fn fields(&self) -> &Self {
+        &self
     }
+    fn num_packets(&self) -> usize {
+        1
+    }
+    fn packet_size(&self) -> usize {
+        0
+    }
+    fn build(&mut self, buffer: &mut [u8]) {}
+}
 
-    pub fn send<'p, P>(&self, payload: &'p mut P) -> ArpBuilder<'p, P>
-        where P: Payload<ArpFields>
-    {
-        ArpBuilder::new(payload)
+#[derive(Clone)]
+pub struct ArpTx<T> {
+    tx: T,
+}
+
+impl<T> ArpTx<T> {
+    pub fn new(tx: T) -> Self {
+        ArpTx { tx: tx }
     }
 }
 
+impl<T: Tx<EthernetFields>> Tx<ArpPayload> for ArpTx<T> {
+    fn send<'p, P>(&mut self, payload: &'p mut P) -> Option<TxResult<()>>
+        where P: Payload<ArpPayload>
+    {
+        let mut builder = ArpBuilder::new(payload);
+        self.tx.send(&mut builder)
+    }
+}
 
-pub struct ArpBuilder<'p, P: Payload<ArpFields> + 'p> {
+pub struct ArpBuilder<'p, P: Payload<ArpPayload> + 'p> {
     payload: &'p mut P,
 }
 
-impl<'p, P: Payload<ArpFields>> ArpBuilder<'p, P> {
+impl<'p, P: Payload<ArpPayload>> ArpBuilder<'p, P> {
     pub fn new(payload: &'p mut P) -> Self {
         ArpBuilder { payload: payload }
     }
 }
 
-impl<'p, P: Payload<ArpFields>> Payload<EthernetFields> for ArpBuilder<'p, P> {
+impl<'p, P: Payload<ArpPayload>> Payload<EthernetFields> for ArpBuilder<'p, P> {
     fn fields(&self) -> &EthernetFields {
         static FIELDS: EthernetFields = EthernetFields(EtherTypes::Arp);
         &FIELDS
