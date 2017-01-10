@@ -104,7 +104,6 @@ impl<'a, ParentFields> Payload<ParentFields> for CustomPayload<'a, ParentFields>
 
 #[cfg(test)]
 mod custom_payload_tests {
-    use Payload;
     use super::*;
 
     #[test]

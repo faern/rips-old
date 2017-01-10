@@ -161,7 +161,7 @@ impl<'p, P: Payload<Ipv4Fields>> Payload<EthernetFields> for Ipv4Builder<'p, P> 
 
 #[cfg(test)]
 mod tests {
-    use {TxResult, TxError, CustomPayload};
+    use {TxResult, TxError, Tx, CustomPayload, Payload};
     use ethernet::EthernetTx;
 
     use pnet::packet::Packet;

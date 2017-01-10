@@ -17,7 +17,6 @@ mod tests {
 
     use pnet::packet::MutablePacket;
     use pnet::packet::ethernet::MutableEthernetPacket;
-    use pnet::packet::ip::IpNextHeaderProtocols;
     use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 
     use std::collections::HashMap;
