@@ -6,7 +6,6 @@ use ethernet::{EthernetRx, EthernetTx, MacAddr, EthernetFields};
 
 use ipnetwork::Ipv4Network;
 
-use lru::LruCache;
 // use ipv4::{self, Ipv4TxImpl};
 
 use pnet::datalink::EthernetDataLinkSender;
@@ -144,7 +143,7 @@ impl StackInterfaceThread {
             let mut payload =
                 ArpPayload::reply(self.data.interface.mac, target_ip, sender_mac, sender_ip);
             if let Err(e) = tx_send!(|| self.data.arp_tx(sender_mac); &mut payload) {
-                error!("Unable to send arp response to {}", sender_ip);
+                error!("Unable to send arp response to {}: {}", sender_ip, e);
             }
         }
     }
@@ -309,11 +308,6 @@ impl Drop for StackInterface {
     fn drop(&mut self) {
         self.data.tx.lock().unwrap().inc();
     }
-}
-
-struct Ipv4Abc {
-    dst: Ipv4Addr,
-    routing_table: Arc<RwLock<RoutingTable>>,
 }
 
 /// The main struct of this library, managing an entire TCP/IP stack. Takes
@@ -570,7 +564,7 @@ impl TxBarrier {
         };
         while packets_left > 0 {
             let num_packets = cmp::min(packets_left, max_packets_per_call);
-            let result = self.tx
+            self.tx
                 .build_and_send(num_packets, packet_size, &mut ethernet_payload)
                 .expect("Insufficient buffer space")?;
             packets_left -= num_packets;
