@@ -1,0 +1,24 @@
+environment:
+  matrix:
+    - TARGET: x86_64-pc-windows-msvc
+      RUST_CHANNEL: 1.14.0
+    - TARGET: i686-pc-windows-msvc
+      RUST_CHANNEL: 1.14.0
+    - TARGET: x86_64-pc-windows-msvc
+      RUST_CHANNEL: beta
+    - TARGET: i686-pc-windows-msvc
+      RUST_CHANNEL: beta
+    - TARGET: x86_64-pc-windows-msvc
+      RUST_CHANNEL: nightly
+    - TARGET: i686-pc-windows-msvc
+      RUST_CHANNEL: nightly
+install:
+    - ps: mkdir ${env:APPVEYOR_BUILD_FOLDER}/lib
+    - ps: Start-FileDownload "https://static.rust-lang.org/dist/rust-${env:RUST_CHANNEL}-${env:TARGET}.exe"
+    - rust-%RUST_CHANNEL%-%TARGET%.exe /VERYSILENT /NORESTART /DIR="C:\Program Files (x86)\Rust"
+    - SET PATH=%PATH%;C:\Program Files (x86)\Rust\bin
+    - rustc -V
+    - cargo -V
+build: false
+test_script:
+    - cargo test --verbose
