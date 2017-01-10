@@ -204,7 +204,8 @@ pub mod arp;
 pub mod ipv4;
 
 /// Module containing internet control message procotol (icmp) functionality
-// pub mod icmp;
+pub mod icmp;
+
 /// Module containing Udp functionality.
 // pub mod udp;
 
