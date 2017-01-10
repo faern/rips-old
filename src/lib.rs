@@ -279,25 +279,6 @@ pub trait Tx<RequiredFields>: Clone {
         where P: Payload<RequiredFields>;
 }
 
-// pub trait ProtocolStack<I, O: Payload> {
-//     fn create_builder(&mut self, input: I) -> O;
-// }
-
-// use ethernet::{EthernetTx, EthernetPayload, EthernetBuilder};
-
-// impl<'p, P: EthernetPayload> ProtocolStack<P, EthernetBuilder<'p, P>> for
-// EthernetTx {
-//     fn create_builder(&mut self, input: P) -> EthernetBuilder<'p, P> {
-//         EthernetTx::send(self, input)
-//     }
-// }
-
-// impl<P: Protocol> ProtocolTx<P> {
-//     pub fn send(&mut self, input: P::Input) -> TxResult<()> {
-//         let builder = self.protocol.create_builder(input);
-//         self.tx.send(builder)
-//     }
-// }
 
 // pub fn stack<Datalink>(_datalink_provider: Datalink) ->
 // StackResult<NetworkStack>
