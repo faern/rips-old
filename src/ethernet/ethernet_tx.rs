@@ -1,4 +1,4 @@
-use {Payload, CustomPayload, Tx, TxResult};
+use {Payload, Tx, TxResult};
 
 use pnet::packet::MutablePacket;
 use pnet::packet::ethernet::{EthernetPacket, MutableEthernetPacket};
@@ -51,7 +51,6 @@ pub struct EthernetBuilder<'p, P: Payload<EthernetFields> + 'p> {
 }
 
 impl<'p, P: Payload<EthernetFields>> EthernetBuilder<'p, P> {
-    /// Creates a new `EthernetBuilder` with the given parameters
     pub fn new(src: MacAddr, dst: MacAddr, payload: &'p mut P) -> Self {
         EthernetBuilder {
             src: src,
@@ -87,7 +86,7 @@ impl<'p, P: Payload<EthernetFields>> Payload<()> for EthernetBuilder<'p, P> {
 
 #[cfg(test)]
 mod ethernet_tx_tests {
-    use {TxResult, TxError, Tx, Payload};
+    use {TxResult, TxError, Tx, Payload, CustomPayload};
 
     use pnet::packet::Packet;
     use pnet::packet::ethernet::{EtherTypes, EthernetPacket};

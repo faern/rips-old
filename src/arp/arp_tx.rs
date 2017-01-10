@@ -1,6 +1,5 @@
-use {Payload, TxResult, DatalinkTx, Tx};
-use ethernet::{EtherType, EtherTypes, MacAddr};
-use ethernet::{EthernetFields, EthernetTx};
+use {Payload, TxResult, Tx};
+use ethernet::{EtherTypes, MacAddr, EthernetFields};
 
 use pnet::packet::arp::{ArpHardwareTypes, ArpPacket, MutableArpPacket};
 pub use pnet::packet::arp::{ArpOperation, ArpOperations};
@@ -51,7 +50,7 @@ impl Payload<ArpPayload> for ArpPayload {
     fn packet_size(&self) -> usize {
         0
     }
-    fn build(&mut self, buffer: &mut [u8]) {}
+    fn build(&mut self, _buffer: &mut [u8]) {}
 }
 
 #[derive(Clone)]

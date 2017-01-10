@@ -1,8 +1,10 @@
+pub use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+
 mod ipv4_rx;
 mod ipv4_tx;
 
 pub use self::ipv4_rx::{BasicIpv4Listener, IpListenerLookup, Ipv4Listener, Ipv4Rx};
-pub use self::ipv4_tx::{BasicIpv4Payload, Ipv4Builder, Ipv4Payload, Ipv4Tx, Ipv4TxImpl};
+pub use self::ipv4_tx::{Ipv4Fields, Ipv4Builder, Ipv4Tx};
 
 pub const MORE_FRAGMENTS: u8 = 0b001;
 pub const DONT_FRAGMENT: u8 = 0b010;
