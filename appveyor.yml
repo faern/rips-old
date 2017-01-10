@@ -35,6 +35,7 @@ install:
     - rust-%RUST_CHANNEL%-%TARGET%.exe /VERYSILENT /NORESTART /DIR="C:\Program Files (x86)\Rust"
     - CALL "%VCVARS%"
     - SET PATH=%PATH%;C:\Program Files (x86)\Rust\bin
+    - ps: cp ${env:WPD_LIB_PATH} "C:\\Program Files (x86)\\Rust\\lib\\rustlib\\${env:TARGET}\\lib\\Packet.lib"
     - choco install winpcap
     - rustc -V
     - cargo -V
