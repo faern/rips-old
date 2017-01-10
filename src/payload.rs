@@ -33,8 +33,9 @@ pub trait Payload<ParentFields> {
 #[derive(Clone)]
 pub struct CustomPayload<'a, ParentFields> {
     parent_fields: ParentFields,
-    offset: usize,
+    num_packets: usize,
     packet_size: usize,
+    offset: usize,
     payload: &'a [u8],
 }
 
@@ -49,9 +50,32 @@ impl<'a, ParentFields> CustomPayload<'a, ParentFields> {
                             -> Self {
         CustomPayload {
             parent_fields: parent_fields,
-            offset: 0,
+            num_packets: Self::calculate_num_packets(payload.len(), packet_size),
             packet_size: packet_size,
+            offset: 0,
             payload: payload,
+        }
+    }
+
+    pub fn exact(parent_fields: ParentFields,
+                 num_packets: usize,
+                 packet_size: usize,
+                 payload: &'a [u8])
+                 -> Self {
+        CustomPayload {
+            parent_fields: parent_fields,
+            num_packets: num_packets,
+            packet_size: packet_size,
+            offset: 0,
+            payload: payload,
+        }
+    }
+
+    fn calculate_num_packets(payload_len: usize, packet_size: usize) -> usize {
+        if payload_len == 0 || packet_size == 0 {
+            1
+        } else {
+            (payload_len + packet_size - 1) / packet_size
         }
     }
 }
@@ -62,11 +86,7 @@ impl<'a, ParentFields> Payload<ParentFields> for CustomPayload<'a, ParentFields>
     }
 
     fn num_packets(&self) -> usize {
-        if self.payload.len() == 0 || self.packet_size == 0 {
-            1
-        } else {
-            (self.payload.len() + self.packet_size - 1) / self.packet_size
-        }
+        self.num_packets
     }
 
     fn packet_size(&self) -> usize {
