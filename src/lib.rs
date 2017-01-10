@@ -172,7 +172,6 @@
 extern crate rand;
 extern crate pnet;
 extern crate ipnetwork;
-extern crate lru;
 #[macro_use]
 extern crate lazy_static;
 
