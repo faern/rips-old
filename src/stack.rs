@@ -6,7 +6,7 @@ use ethernet::{EthernetRx, EthernetTx, MacAddr, EthernetFields};
 
 use ipnetwork::Ipv4Network;
 
-// use ipv4::{self, Ipv4TxImpl};
+use ipv4::{self, Ipv4Tx};
 
 use pnet::datalink::EthernetDataLinkSender;
 use pnet::packet::MutablePacket;
@@ -161,7 +161,8 @@ pub struct StackInterface {
     mtu: usize,
     _thread_handle: StackInterfaceThreadHandle,
     arp_table: ArpTable,
-    ipv4_datas: HashMap<Ipv4Addr, Ipv4Data>, // ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
+    ipv4_datas: HashMap<Ipv4Addr, Ipv4Data>,
+    ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
 }
 
 impl StackInterface {
@@ -179,10 +180,10 @@ impl StackInterface {
 
         let arp_rx = arp_table.arp_rx(thread_handle.tx.clone());
 
-        // let ipv4_listeners = Arc::new(Mutex::new(HashMap::new()));
-        // let ipv4_rx = ipv4::Ipv4Rx::new(ipv4_listeners.clone());
+        let ipv4_listeners = Arc::new(Mutex::new(HashMap::new()));
+        let ipv4_rx = ipv4::Ipv4Rx::new(ipv4_listeners.clone());
 
-        let ethernet_listeners = vec![arp_rx /* , ipv4_rx */];
+        let ethernet_listeners = vec![arp_rx, ipv4_rx];
         let ethernet_rx = EthernetRx::new(ethernet_listeners);
         rx::spawn(channel.receiver, ethernet_rx);
 
@@ -191,7 +192,8 @@ impl StackInterface {
             mtu: DEFAULT_MTU,
             _thread_handle: thread_handle,
             arp_table: arp_table,
-            ipv4_datas: HashMap::new(), // ipv4_listeners: ipv4_listeners,
+            ipv4_datas: HashMap::new(),
+            ipv4_listeners: ipv4_listeners,
         }
     }
 
@@ -247,23 +249,27 @@ impl StackInterface {
         }
     }
 
-    // pub fn ipv4_sender(&mut self, dst: Ipv4Addr, gw: Option<Ipv4Addr>) ->
-    // StackResult<Ipv4Sender> {
-    //     let local_dst = gw.unwrap_or(dst);
-    //     if let Some(src) = self.closest_local_ip(local_dst) {
-    //         let dst_mac = match self.arp_table.get(local_dst) {
-    //             Ok(mac) => mac,
-    //             Err(rx) => {
-    //                 self.arp_sender().send(arp::ArpRequest(self.interface.mac))?;
-    //                 rx.recv().unwrap()
-    //             }
-    //         };
-    //         let ethernet_tx = self.ethernet_tx(dst_mac);
-    //         Ok(Ipv4TxImpl::new(ethernet_tx, src, dst, self.mtu))
-    //     } else {
-    //         Err(StackError::IllegalArgument)
-    //     }
-    // }
+    pub fn ipv4_tx(&mut self,
+                   dst: Ipv4Addr,
+                   gw: Option<Ipv4Addr>)
+                   -> StackResult<Ipv4Tx<EthernetTx<DatalinkTx>>> {
+        let local_dst = gw.unwrap_or(dst);
+        if let Some(src) = self.closest_local_ip(local_dst) {
+            let dst_mac = match self.arp_table.get(local_dst) {
+                Ok(mac) => mac,
+                Err(rx) => {
+                    let src_mac = self.data.interface.mac;
+                    let mut arp_request = arp::ArpPayload::request(src_mac, src, local_dst);
+                    tx_send!(|| self.arp_request_tx(); &mut arp_request)?;
+                    rx.recv().unwrap()
+                }
+            };
+            let ethernet_tx = self.ethernet_tx(dst_mac);
+            Ok(Ipv4Tx::new(ethernet_tx, src, dst, self.mtu))
+        } else {
+            Err(StackError::IllegalArgument)
+        }
+    }
 
     // pub fn icmp_listen<L>(&mut self,
     //                       local_ip: Ipv4Addr,
@@ -373,19 +379,17 @@ impl NetworkStack {
         Ok(())
     }
 
-    // pub fn ipv4_tx(&mut self,
-    //                dst: Ipv4Addr)
-    //                -> StackResult<Ipv4TxImpl<EthernetTxImpl<DatalinkTx>>> {
-    //     if let Some((gw, interface)) = self.routing_table.route(dst) {
-    //         if let Some(stack_interface) = self.interfaces.get_mut(&interface) {
-    //             stack_interface.ipv4_tx(dst, gw)
-    //         } else {
-    //             Err(StackError::IllegalArgument)
-    //         }
-    //     } else {
-    //         Err(StackError::NoRouteToHost)
-    //     }
-    // }
+    pub fn ipv4_tx(&mut self, dst: Ipv4Addr) -> StackResult<Ipv4Tx<EthernetTx<DatalinkTx>>> {
+        if let Some((gw, interface)) = self.routing_table.read().unwrap().route(dst) {
+            if let Some(stack_interface) = self.interfaces.get_mut(&interface) {
+                stack_interface.ipv4_tx(dst, gw)
+            } else {
+                Err(StackError::IllegalArgument)
+            }
+        } else {
+            Err(StackError::NoRouteToHost)
+        }
+    }
 
     // pub fn icmp_tx(&mut self,
     //                dst_ip: Ipv4Addr)
