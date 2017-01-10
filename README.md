@@ -1,15 +1,12 @@
-# Rips - Rust IP Stack
+# rips - Rust IP Stack
 
 **This repository is in a messy state. I kind of had UDP working, but then
 I realized the design was flawed. So now everything is torn apart and I'm
 slowly putting it back together again. Don't expect beautiful code, nor
 great functionality, before the 0.1.0 release.**
 
-**I will be at 33C3 if you are interested in this project and want to know
-more!**
-
 [`rips`](https://github.com/faern/rips) is a TCP/IP stack implemented in
-Rust and backed by [`libpnet`](https://github.com/libpnet/libpnet) for its
+Rust and backed by [`pnet`](https://github.com/libpnet/libpnet) for its
 raw ethernet access.
 
 **WARNING**: This is not a *complete* TCP/IP stack at the moment.
@@ -51,9 +48,9 @@ An incomplete list of what rips supports and is missing at the moment.
 - [ ] IPv4
   - [x] Standard send
   - [x] Validate lengths and checksums as part of parsing incoming
-  - [ ] Fragmenting outgoing packets
+  - [x] Fragmenting outgoing packets
     - [x] Works in standard case
-    - [ ] Correctly picking an identification field
+    - [x] Correctly picking an identification field
   - [ ] Reassembling incoming packets
     - [x] Works in standard case
     - [ ] Timing out caches of packets that were never completed
