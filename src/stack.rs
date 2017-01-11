@@ -1,18 +1,16 @@
 use {EthernetChannel, Interface, RoutingTable, TxError, TxResult, Tx, Payload};
 use StackError;
 use arp::{self, ArpPayload, ArpTx, ArpTable};
-use ethernet::{EthernetRx, EthernetTx, MacAddr, EthernetFields};
-// use icmp::{self, IcmpTx};
+use ethernet::{EthernetRx, EthernetTx, MacAddr};
+use icmp::{IcmpTx, IcmpType, IcmpRx, IcmpListener, IcmpListenerLookup};
 
 use ipnetwork::Ipv4Network;
 
-use ipv4::{self, Ipv4Tx};
+use ipv4::{Ipv4Tx, Ipv4Rx, IpNextHeaderProtocols, Ipv4Listener, IpListenerLookup};
 
 use pnet::datalink::EthernetDataLinkSender;
 use pnet::packet::MutablePacket;
 use pnet::packet::ethernet::MutableEthernetPacket;
-use pnet::packet::icmp::IcmpType;
-use pnet::packet::ip::IpNextHeaderProtocols;
 
 use rand;
 use rand::distributions::{IndependentSample, Range};
@@ -150,8 +148,8 @@ impl StackInterfaceThread {
 }
 
 struct Ipv4Data {
-    net: Ipv4Network, /* udp_listeners: Arc<Mutex<udp::UdpListenerLookup>>,
-                       * icmp_listeners: Arc<Mutex<icmp::IcmpListenerLookup>>, */
+    net: Ipv4Network, // udp_listeners: Arc<Mutex<udp::UdpListenerLookup>>,
+    icmp_listeners: Arc<Mutex<IcmpListenerLookup>>,
 }
 
 /// Represents the stack on one physical interface.
@@ -162,7 +160,7 @@ pub struct StackInterface {
     _thread_handle: StackInterfaceThreadHandle,
     arp_table: ArpTable,
     ipv4_datas: HashMap<Ipv4Addr, Ipv4Data>,
-    ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
+    ipv4_listeners: Arc<Mutex<IpListenerLookup>>,
 }
 
 impl StackInterface {
@@ -181,7 +179,7 @@ impl StackInterface {
         let arp_rx = arp_table.arp_rx(thread_handle.tx.clone());
 
         let ipv4_listeners = Arc::new(Mutex::new(HashMap::new()));
-        let ipv4_rx = ipv4::Ipv4Rx::new(ipv4_listeners.clone());
+        let ipv4_rx = Ipv4Rx::new(ipv4_listeners.clone());
 
         let ethernet_listeners = vec![arp_rx, ipv4_rx];
         let ethernet_rx = EthernetRx::new(ethernet_listeners);
@@ -222,25 +220,25 @@ impl StackInterface {
         match self.ipv4_datas.entry(ip) {
             Entry::Occupied(_) => Err(StackError::IllegalArgument),
             Entry::Vacant(entry) => {
-                // let mut proto_listeners = HashMap::new();
+                let mut proto_listeners = HashMap::new();
 
                 // let udp_listeners = Arc::new(Mutex::new(HashMap::new()));
                 // let udp_rx = udp::UdpRx::new(udp_listeners.clone());
-                // let udp_ipv4_listener = Box::new(udp_rx) as Box<ipv4::Ipv4Listener>;
+                // let udp_ipv4_listener = Box::new(udp_rx) as Box<Ipv4Listener>;
                 // proto_listeners.insert(IpNextHeaderProtocols::Udp, udp_ipv4_listener);
 
-                // let icmp_listeners = Arc::new(Mutex::new(HashMap::new()));
-                // let icmp_rx = icmp::IcmpRx::new(icmp_listeners.clone());
-                // let icmp_listener = Box::new(icmp_rx) as Box<ipv4::Ipv4Listener>;
-                // proto_listeners.insert(IpNextHeaderProtocols::Icmp, icmp_listener);
-                // {
-                //     let mut ipv4_listeners = self.ipv4_listeners.lock().unwrap();
-                //     ipv4_listeners.insert(ip, proto_listeners);
-                // }
+                let icmp_listeners = Arc::new(Mutex::new(HashMap::new()));
+                let icmp_rx = IcmpRx::new(icmp_listeners.clone());
+                let icmp_listener = Box::new(icmp_rx) as Box<Ipv4Listener>;
+                proto_listeners.insert(IpNextHeaderProtocols::Icmp, icmp_listener);
+                {
+                    let mut ipv4_listeners = self.ipv4_listeners.lock().unwrap();
+                    ipv4_listeners.insert(ip, proto_listeners);
+                }
 
                 let data = Ipv4Data {
-                    net: ip_net, /* udp_listeners: udp_listeners,
-                                  * icmp_listeners: icmp_listeners, */
+                    net: ip_net, // udp_listeners: udp_listeners,
+                    icmp_listeners: icmp_listeners,
                 };
                 entry.insert(data);
                 self.data.ipv4_addresses.write().unwrap().insert(ip);
@@ -271,23 +269,22 @@ impl StackInterface {
         }
     }
 
-    // pub fn icmp_listen<L>(&mut self,
-    //                       local_ip: Ipv4Addr,
-    //                       icmp_type: IcmpType,
-    //                       listener: L)
-    //                       -> io::Result<()>
-    //     where L: icmp::IcmpListener + 'static
-    // {
-    //     if let Some(ip_data) = self.ipv4_datas.get(&local_ip) {
-    //         let mut icmp_listeners = ip_data.icmp_listeners.lock().unwrap();
-    // icmp_listeners.entry(icmp_type).or_insert_with(Vec::new).push(Box::
-    // new(listener));
-    //         Ok(())
-    //     } else {
-    //         let msg = "Bind address does not exist on interface".to_owned();
-    //         Err(io::Error::new(io::ErrorKind::InvalidInput, msg))
-    //     }
-    // }
+    pub fn icmp_listen<L>(&mut self,
+                          local_ip: Ipv4Addr,
+                          icmp_type: IcmpType,
+                          listener: L)
+                          -> io::Result<()>
+        where L: IcmpListener + 'static
+    {
+        if let Some(ip_data) = self.ipv4_datas.get(&local_ip) {
+            let mut icmp_listeners = ip_data.icmp_listeners.lock().unwrap();
+            icmp_listeners.entry(icmp_type).or_insert_with(Vec::new).push(Box::new(listener));
+            Ok(())
+        } else {
+            let msg = "Bind address does not exist on interface".to_owned();
+            Err(io::Error::new(io::ErrorKind::InvalidInput, msg))
+        }
+    }
 
     pub fn get_mtu(&self) -> usize {
         self.mtu
@@ -391,40 +388,39 @@ impl NetworkStack {
         }
     }
 
-    // pub fn icmp_tx(&mut self,
-    //                dst_ip: Ipv4Addr)
-    // ->
-    // StackResult<IcmpTx<Ipv4TxImpl<EthernetTxImpl<DatalinkTx>>>> {
-    //     let ipv4_tx = self.ipv4_tx(dst_ip)?;
-    //     Ok(icmp::IcmpTx::new(ipv4_tx))
-    // }
+    pub fn icmp_tx(&mut self,
+                   dst_ip: Ipv4Addr)
+                   -> StackResult<IcmpTx<Ipv4Tx<EthernetTx<DatalinkTx>>>> {
+        let ipv4_tx = self.ipv4_tx(dst_ip)?;
+        Ok(IcmpTx::new(ipv4_tx))
+    }
 
-    // pub fn icmp_listen<L>(&mut self,
-    //                       local_ip: Ipv4Addr,
-    //                       icmp_type: IcmpType,
-    //                       listener: L)
-    //                       -> io::Result<()>
-    //     where L: icmp::IcmpListener + 'static + Clone
-    // {
-    //     if local_ip == Ipv4Addr::new(0, 0, 0, 0) {
-    // let msg = "Rips does not support listening to all interfaces
-    // yet".to_owned();
-    //         Err(io::Error::new(io::ErrorKind::InvalidInput, msg))
-    //     } else {
-    //         let mut added_to_interface = false;
-    //         for stack_interface in self.interfaces.values_mut() {
-    // let result = stack_interface.icmp_listen(local_ip, icmp_type,
-    // listener.clone());
-    //             added_to_interface |= result.is_ok();
-    //         }
-    //         if added_to_interface {
-    //             Ok(())
-    //         } else {
-    //             let msg = "Bind address does not exist in stack".to_owned();
-    //             Err(io::Error::new(io::ErrorKind::InvalidInput, msg))
-    //         }
-    //     }
-    // }
+    pub fn icmp_listen<L>(&mut self,
+                          local_ip: Ipv4Addr,
+                          icmp_type: IcmpType,
+                          listener: L)
+                          -> io::Result<()>
+        where L: IcmpListener + 'static + Clone
+    {
+        if local_ip == Ipv4Addr::new(0, 0, 0, 0) {
+            let msg = "Rips does not support listening to all interfaces
+    yet"
+                .to_owned();
+            Err(io::Error::new(io::ErrorKind::InvalidInput, msg))
+        } else {
+            let mut added_to_interface = false;
+            for stack_interface in self.interfaces.values_mut() {
+                let result = stack_interface.icmp_listen(local_ip, icmp_type, listener.clone());
+                added_to_interface |= result.is_ok();
+            }
+            if added_to_interface {
+                Ok(())
+            } else {
+                let msg = "Bind address does not exist in stack".to_owned();
+                Err(io::Error::new(io::ErrorKind::InvalidInput, msg))
+            }
+        }
+    }
 
     // pub fn udp_tx(&mut self,
     //               dst_ip: Ipv4Addr,

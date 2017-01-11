@@ -1,10 +1,10 @@
 use {Tx, Payload, CustomPayload, TxResult};
-use ipv4::{Ipv4Fields, Ipv4Tx};
+use ipv4::Ipv4Fields;
 
 use pnet::packet::MutablePacket;
 use pnet::packet::icmp::{IcmpCode, IcmpType, MutableIcmpPacket, checksum, IcmpTypes};
 use pnet::packet::icmp::echo_request::{IcmpCodes, MutableEchoRequestPacket};
-use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+use pnet::packet::ip::IpNextHeaderProtocols;
 
 pub struct IcmpFields {
     pub icmp_type: IcmpType,

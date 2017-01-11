@@ -1,3 +1,8 @@
+pub use pnet::packet::icmp::{IcmpType, IcmpTypes, IcmpCode};
+pub use pnet::packet::icmp::destination_unreachable::IcmpCodes as DestinationUnreachableCodes;
+pub use pnet::packet::icmp::echo_request::IcmpCodes as EchoCodes;
+pub use pnet::packet::icmp::time_exceeded::IcmpCodes as TimeExceededCodes;
+
 mod icmp_rx;
 mod icmp_tx;
 
