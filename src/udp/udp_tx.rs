@@ -1,43 +1,50 @@
-use {Payload, TxResult};
-use ipv4::{Ipv4Payload, Ipv4Tx};
+use {Tx, Payload, TxResult};
+use ipv4::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+use ipv4::Ipv4Fields;
 
-use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum_adv};
 
 use std::cmp;
 use std::net::SocketAddrV4;
 
-pub struct UdpTx {
-    src: u16,
-    dst: u16,
+pub struct UdpFields<'a>(pub &'a [u8]);
+
+#[derive(Clone)]
+pub struct UdpTx<T> {
+    tx: T,
+    src: SocketAddrV4,
+    dst: SocketAddrV4,
 }
 
-impl UdpTx {
-    pub fn new(src: u16, dst: u16) -> Self {
+impl<T> UdpTx<T> {
+    pub fn new(tx: T, src: SocketAddrV4, dst: SocketAddrV4) -> Self {
         UdpTx {
+            tx: tx,
             src: src,
             dst: dst,
         }
     }
+}
 
-    pub fn send<T: Ipv4Tx>(&mut self, tx: T, payload: &[u8]) -> TxResult {
-        let src = SocketAddrV4::new(tx.src(), self.src);
-        let dst = SocketAddrV4::new(tx.dst(), self.dst);
-        let builder = UdpBuilder::new(src, dst, payload);
-        tx.send(builder)
+impl<T: Tx<Ipv4Fields>> Tx<()> for UdpTx<T> {
+    fn send<'p, P>(&mut self, payload: &'p mut P) -> Option<TxResult<()>>
+        where P: Payload<UdpFields<'p>>
+    {
+        let mut builder = UdpBuilder::new(self.src, self.dst, payload);
+        self.tx.send(&mut builder)
     }
 }
 
-pub struct UdpBuilder<'a> {
+pub struct UdpBuilder<'p, P: Payload<UdpFields<'p>> + 'p> {
     src: SocketAddrV4,
     dst: SocketAddrV4,
     header_sent: bool,
     offset: usize,
-    payload: &'a [u8],
+    payload: &'p P,
 }
 
-impl<'a> UdpBuilder<'a> {
-    pub fn new(src: SocketAddrV4, dst: SocketAddrV4, payload: &'a [u8]) -> UdpBuilder<'a> {
+impl<'p, P: Payload<UdpFields<'p>>> UdpBuilder<'p, P> {
+    pub fn new(src: SocketAddrV4, dst: SocketAddrV4, payload: &'p mut P) -> Self {
         UdpBuilder {
             src: src,
             dst: dst,
@@ -48,15 +55,18 @@ impl<'a> UdpBuilder<'a> {
     }
 }
 
-impl<'a> Ipv4Payload for UdpBuilder<'a> {
-    fn next_level_protocol(&self) -> IpNextHeaderProtocol {
-        IpNextHeaderProtocols::Udp
+impl<'p, P: Payload<UdpFields<'p>>> Payload<Ipv4Fields> for UdpBuilder<'p, P> {
+    fn fields(&self) -> &Ipv4Fields {
+        static FIELDS: Ipv4Fields = Ipv4Fields(IpNextHeaderProtocols::Udp);
+        &FIELDS
     }
-}
 
-impl<'a> Payload for UdpBuilder<'a> {
-    fn len(&self) -> usize {
-        UdpPacket::minimum_packet_size() + self.payload.len()
+    fn num_packets(&self) -> usize {
+        self.payload.num_packets()
+    }
+
+    fn packet_size(&self) -> usize {
+        UdpPacket::minimum_packet_size() + self.payload.packet_size()
     }
 
     fn build(&mut self, buffer: &mut [u8]) {
@@ -67,7 +77,7 @@ impl<'a> Payload for UdpBuilder<'a> {
                 let mut pkg = MutableUdpPacket::new(header_buffer).unwrap();
                 pkg.set_source(self.src.port());
                 pkg.set_destination(self.dst.port());
-                pkg.set_length(self.len() as u16);
+                pkg.set_length(self.packet_size() as u16);
                 let checksum = ipv4_checksum_adv(&pkg.to_immutable(),
                                                  self.payload,
                                                  *self.src.ip(),

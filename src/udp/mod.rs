@@ -1,7 +1,7 @@
 use {NetworkStack, StackError, StackResult, DatalinkTx};
-use {TxError, TxResult};
-use ethernet::EthernetTxImpl;
-use ipv4::Ipv4TxImpl;
+use {TxError, TxResult, Tx};
+use ethernet::EthernetTx;
+use ipv4::Ipv4Tx;
 
 use std::collections::HashMap;
 use std::io;
@@ -20,7 +20,7 @@ pub use self::udp_tx::{UdpBuilder, UdpTx};
 pub struct UdpSocket {
     socket_addr: SocketAddr,
     stack: Arc<Mutex<NetworkStack>>,
-    tx_cache: HashMap<SocketAddrV4, UdpTx<Ipv4TxImpl<EthernetTxImpl<DatalinkTx>>>>,
+    tx_cache: HashMap<SocketAddrV4, UdpTx<Ipv4Tx<EthernetTx<DatalinkTx>>>>,
     rx: Option<UdpSocketReader>,
 }
 
@@ -87,7 +87,7 @@ impl UdpSocket {
         }
     }
 
-    fn internal_send_on_cached_tx(&mut self, buf: &[u8], dst: SocketAddrV4) -> TxResult {
+    fn internal_send_on_cached_tx(&mut self, buf: &[u8], dst: SocketAddrV4) -> TxResult<()> {
         if buf.len() > ::std::u16::MAX as usize {
             return Err(TxError::TooLargePayload);
         }

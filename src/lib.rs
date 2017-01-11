@@ -207,7 +207,7 @@ pub mod ipv4;
 pub mod icmp;
 
 /// Module containing Udp functionality.
-// pub mod udp;
+pub mod udp;
 
 mod routing;
 pub use routing::RoutingTable;
@@ -271,7 +271,7 @@ pub struct EthernetChannel {
 /// Type binding for the type of `Result` that a send method returns.
 pub type TxResult<T> = Result<T, TxError>;
 
-/// Simple type definition for return type of `recv` on `*Rx` objects.
+/// Type binding for return type of `recv` on `*Rx` objects.
 pub type RxResult = Result<(), RxError>;
 
 
