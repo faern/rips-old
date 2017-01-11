@@ -92,27 +92,6 @@ impl<'p, P: Payload<IcmpFields>> Payload<Ipv4Fields> for IcmpBuilder<'p, P> {
     }
 }
 
-// pub struct PingBuilder<'a> {
-//     payload: BasicPayload<'a>,
-// }
-
-// impl<'a> PingBuilder<'a> {
-//     pub fn new(payload: &'a [u8]) -> PingBuilder<'a> {
-//         PingBuilder { payload: BasicPayload::new(payload) }
-//     }
-// }
-
-// impl<'a> IcmpPayload for PingBuilder<'a> {
-//     fn icmp_type(&self) -> IcmpType {
-//         IcmpTypes::EchoRequest
-//     }
-
-//     fn icmp_code(&self) -> IcmpCode {
-//         IcmpCodes::NoCode
-//     }
-
-//     fn build_header(&self, _header: &mut MutableIcmpPacket) {}
-// }
 
 #[cfg(test)]
 mod tests {
@@ -134,16 +113,15 @@ mod tests {
     #[test]
     fn test_send_echo() {
         let (tx, read_handle) = MockTx::new();
+
         let mut testee = IcmpTx::new(tx);
         testee.send_echo(&[9, 55]).unwrap();
 
-        let data = read_handle.try_recv().unwrap();
-        // assert_eq!(IpNextHeaderProtocols::Icmp, next_level_protocol);
+        let data = read_handle.try_recv().expect("Expected echo packet");
         let echo_pkg = EchoRequestPacket::new(&data).unwrap();
         assert_eq!(IcmpTypes::EchoRequest, echo_pkg.get_icmp_type());
-        assert_eq!(0, echo_pkg.get_icmp_code().0);
-        assert_eq!(61128, echo_pkg.get_checksum());
+        assert_eq!(IcmpCodes::NoCode, echo_pkg.get_icmp_code());
+        assert_eq!(61128, echo_pkg.get_checksum()); // For ident&seq == 0
         assert_eq!([9, 55], echo_pkg.payload());
     }
-
 }
