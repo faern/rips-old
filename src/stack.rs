@@ -389,9 +389,9 @@ impl NetworkStack {
     }
 
     pub fn icmp_tx(&mut self,
-                   dst_ip: Ipv4Addr)
+                   dst: Ipv4Addr)
                    -> StackResult<IcmpTx<Ipv4Tx<EthernetTx<DatalinkTx>>>> {
-        let ipv4_tx = self.ipv4_tx(dst_ip)?;
+        let ipv4_tx = self.ipv4_tx(dst)?;
         Ok(IcmpTx::new(ipv4_tx))
     }
 
