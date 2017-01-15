@@ -9,38 +9,41 @@ use std::net::SocketAddrV4;
 
 pub struct UdpFields<'a>(pub &'a [u8]);
 
-#[derive(Clone)]
-pub struct UdpTx<T> {
-    tx: T,
-    src: SocketAddrV4,
-    dst: SocketAddrV4,
-}
+// #[derive(Clone)]
+// pub struct UdpTx<T> {
+//     tx: T,
+//     src: SocketAddrV4,
+//     dst: SocketAddrV4,
+// }
 
-impl<T> UdpTx<T> {
-    pub fn new(tx: T, src: SocketAddrV4, dst: SocketAddrV4) -> Self {
-        UdpTx {
-            tx: tx,
-            src: src,
-            dst: dst,
-        }
-    }
-}
+// impl<T> UdpTx<T> {
+//     pub fn new(tx: T, src: SocketAddrV4, dst: SocketAddrV4) -> Self {
+//         UdpTx {
+//             tx: tx,
+//             src: src,
+//             dst: dst,
+//         }
+//     }
 
-impl<T: Tx<Ipv4Fields>> Tx<()> for UdpTx<T> {
-    fn send<'p, P>(&mut self, payload: &'p mut P) -> Option<TxResult<()>>
-        where P: Payload<UdpFields<'p>>
-    {
-        let mut builder = UdpBuilder::new(self.src, self.dst, payload);
-        self.tx.send(&mut builder)
-    }
-}
+//     pub fn send(&mut self, data: &[u8]) -> Option<TxResult<()>> {}
+// }
+
+// impl<'a, T: Tx<Ipv4Fields>> Tx<UdpFields<'a>> for UdpTx<T> {
+//     fn send<'p, P>(&mut self, payload: &'p mut P) -> Option<TxResult<()>>
+//         where P: Payload<UdpFields<'a>>
+//     {
+//         let mut builder = UdpBuilder::new(self.src, self.dst, payload);
+//         self.tx.send(&mut builder)
+//     }
+// }
+
 
 pub struct UdpBuilder<'p, P: Payload<UdpFields<'p>> + 'p> {
     src: SocketAddrV4,
     dst: SocketAddrV4,
     header_sent: bool,
-    offset: usize,
-    payload: &'p P,
+    remaining: usize,
+    payload: &'p mut P,
 }
 
 impl<'p, P: Payload<UdpFields<'p>>> UdpBuilder<'p, P> {
@@ -49,7 +52,7 @@ impl<'p, P: Payload<UdpFields<'p>>> UdpBuilder<'p, P> {
             src: src,
             dst: dst,
             header_sent: false,
-            offset: 0,
+            remaining: payload.packet_size(),
             payload: payload,
         }
     }
@@ -73,13 +76,14 @@ impl<'p, P: Payload<UdpFields<'p>>> Payload<Ipv4Fields> for UdpBuilder<'p, P> {
         let payload_buffer = if !self.header_sent {
             self.header_sent = true;
             {
+                let fields = self.payload.fields();
                 let header_buffer = &mut buffer[..UdpPacket::minimum_packet_size()];
                 let mut pkg = MutableUdpPacket::new(header_buffer).unwrap();
                 pkg.set_source(self.src.port());
                 pkg.set_destination(self.dst.port());
                 pkg.set_length(self.packet_size() as u16);
                 let checksum = ipv4_checksum_adv(&pkg.to_immutable(),
-                                                 self.payload,
+                                                 fields.0,
                                                  *self.src.ip(),
                                                  *self.dst.ip());
                 pkg.set_checksum(checksum);
@@ -88,11 +92,12 @@ impl<'p, P: Payload<UdpFields<'p>>> Payload<Ipv4Fields> for UdpBuilder<'p, P> {
         } else {
             buffer
         };
-        let start = self.offset;
-        let len = cmp::min(payload_buffer.len(), self.payload.len() - start);
-        let end = start + len;
-        payload_buffer[..len].copy_from_slice(&self.payload[start..end]);
-        self.offset = end;
+        let len = cmp::min(self.remaining, payload_buffer.len());
+        self.payload.build(&mut payload_buffer[..len]);
+        self.remaining -= len;
+        if self.remaining == 0 {
+            self.remaining = self.payload.packet_size();
+        }
     }
 }
 
