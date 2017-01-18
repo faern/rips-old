@@ -1,6 +1,5 @@
 use {Tx, Payload, TxResult};
-use ipv4::{IpNextHeaderProtocol, IpNextHeaderProtocols};
-use ipv4::Ipv4Fields;
+use ipv4::{Ipv4Fields, IpNextHeaderProtocols};
 
 use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum_adv};
 
