@@ -11,17 +11,17 @@ pub struct EthernetFields(pub EtherType);
 
 #[derive(Clone)]
 pub struct EthernetTx<T> {
+    tx: T,
     src: MacAddr,
     dst: MacAddr,
-    tx: T,
 }
 
 impl<T> EthernetTx<T> {
     pub fn new(src: MacAddr, dst: MacAddr, tx: T) -> Self {
         EthernetTx {
+            tx: tx,
             src: src,
             dst: dst,
-            tx: tx,
         }
     }
 
