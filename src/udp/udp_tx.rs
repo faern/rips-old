@@ -7,36 +7,30 @@ use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum_adv};
 use std::cmp;
 use std::net::SocketAddrV4;
 
-// pub struct UdpFields<'a>(pub &'a [u8]);
 
+#[derive(Clone)]
+pub struct UdpTx<T> {
+    tx: T,
+    src: SocketAddrV4,
+    dst: SocketAddrV4,
+}
 
-// #[derive(Clone)]
-// pub struct UdpTx<T> {
-//     tx: T,
-//     src: SocketAddrV4,
-//     dst: SocketAddrV4,
-// }
+impl<T> UdpTx<T> {
+    pub fn new(tx: T, src: SocketAddrV4, dst: SocketAddrV4) -> Self {
+        UdpTx {
+            tx: tx,
+            src: src,
+            dst: dst,
+        }
+    }
+}
 
-// impl<T> UdpTx<T> {
-//     pub fn new(tx: T, src: SocketAddrV4, dst: SocketAddrV4) -> Self {
-//         UdpTx {
-//             tx: tx,
-//             src: src,
-//             dst: dst,
-//         }
-//     }
-
-//     pub fn send(&mut self, data: &[u8]) -> Option<TxResult<()>> {}
-// }
-
-// impl<'a, T: Tx<Ipv4Fields>> Tx<UdpFields<'a>> for UdpTx<T> {
-//     fn send<'p, P>(&mut self, payload: &'p mut P) -> Option<TxResult<()>>
-//         where P: Payload<UdpFields<'a>>
-//     {
-//         let mut builder = UdpBuilder::new(self.src, self.dst, payload);
-//         self.tx.send(&mut builder)
-//     }
-// }
+impl<T: Tx<Ipv4Fields>> UdpTx<T> {
+    pub fn send(&mut self, payload: &[u8]) -> Option<TxResult<()>> {
+        let mut builder = UdpBuilder::new(self.src, self.dst, payload);
+        self.tx.send(&mut builder)
+    }
+}
 
 
 pub struct UdpBuilder<'a> {
