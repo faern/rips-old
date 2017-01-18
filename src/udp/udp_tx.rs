@@ -7,7 +7,8 @@ use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum_adv};
 use std::cmp;
 use std::net::SocketAddrV4;
 
-pub struct UdpFields<'a>(pub &'a [u8]);
+// pub struct UdpFields<'a>(pub &'a [u8]);
+
 
 // #[derive(Clone)]
 // pub struct UdpTx<T> {
@@ -38,52 +39,51 @@ pub struct UdpFields<'a>(pub &'a [u8]);
 // }
 
 
-pub struct UdpBuilder<'p, P: Payload<UdpFields<'p>> + 'p> {
+pub struct UdpBuilder<'a> {
     src: SocketAddrV4,
     dst: SocketAddrV4,
     header_sent: bool,
-    remaining: usize,
-    payload: &'p mut P,
+    offset: usize,
+    payload: &'a [u8],
 }
 
-impl<'p, P: Payload<UdpFields<'p>>> UdpBuilder<'p, P> {
-    pub fn new(src: SocketAddrV4, dst: SocketAddrV4, payload: &'p mut P) -> Self {
+impl<'a> UdpBuilder<'a> {
+    pub fn new(src: SocketAddrV4, dst: SocketAddrV4, payload: &'a [u8]) -> Self {
         UdpBuilder {
             src: src,
             dst: dst,
             header_sent: false,
-            remaining: payload.packet_size(),
+            offset: 0,
             payload: payload,
         }
     }
 }
 
-impl<'p, P: Payload<UdpFields<'p>>> Payload<Ipv4Fields> for UdpBuilder<'p, P> {
+impl<'a> Payload<Ipv4Fields> for UdpBuilder<'a> {
     fn fields(&self) -> &Ipv4Fields {
         static FIELDS: Ipv4Fields = Ipv4Fields(IpNextHeaderProtocols::Udp);
         &FIELDS
     }
 
     fn num_packets(&self) -> usize {
-        self.payload.num_packets()
+        1
     }
 
     fn packet_size(&self) -> usize {
-        UdpPacket::minimum_packet_size() + self.payload.packet_size()
+        UdpPacket::minimum_packet_size() + self.payload.len()
     }
 
     fn build(&mut self, buffer: &mut [u8]) {
         let payload_buffer = if !self.header_sent {
             self.header_sent = true;
             {
-                let fields = self.payload.fields();
                 let header_buffer = &mut buffer[..UdpPacket::minimum_packet_size()];
                 let mut pkg = MutableUdpPacket::new(header_buffer).unwrap();
                 pkg.set_source(self.src.port());
                 pkg.set_destination(self.dst.port());
                 pkg.set_length(self.packet_size() as u16);
                 let checksum = ipv4_checksum_adv(&pkg.to_immutable(),
-                                                 fields.0,
+                                                 self.payload,
                                                  *self.src.ip(),
                                                  *self.dst.ip());
                 pkg.set_checksum(checksum);
@@ -92,12 +92,11 @@ impl<'p, P: Payload<UdpFields<'p>>> Payload<Ipv4Fields> for UdpBuilder<'p, P> {
         } else {
             buffer
         };
-        let len = cmp::min(self.remaining, payload_buffer.len());
-        self.payload.build(&mut payload_buffer[..len]);
-        self.remaining -= len;
-        if self.remaining == 0 {
-            self.remaining = self.payload.packet_size();
-        }
+        let start = self.offset;
+        let len = cmp::min(payload_buffer.len(), self.payload.len() - start);
+        let end = start + len;
+        payload_buffer[..len].copy_from_slice(&self.payload[start..end]);
+        self.offset = end;
     }
 }
 
@@ -124,9 +123,10 @@ mod tests {
 
     #[test]
     fn udp_builder_header() {
-        let mut buffer = vec![0; 1000];
-        let data = &[3, 2];
+        let data = &mut [3, 2];
         let mut builder = UdpBuilder::new(*ADDR1, *ADDR2, data);
+
+        let mut buffer = vec![0; 1000];
         builder.build(&mut buffer);
 
         let pkg = UdpPacket::new(&buffer).unwrap();
@@ -134,7 +134,7 @@ mod tests {
         assert_eq!(ADDR2.port(), pkg.get_destination());
         assert_eq!(10, pkg.get_length());
         assert_eq!(5806, pkg.get_checksum());
-        assert_eq!([3, 2], pkg.payload()[0..2]);
+        assert_eq!([3, 2, 0], pkg.payload()[0..3]);
     }
 
     #[test]
