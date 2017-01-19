@@ -96,12 +96,11 @@ impl<'p, P: Payload<IcmpFields>> Payload<Ipv4Fields> for IcmpBuilder<'p, P> {
 #[cfg(test)]
 mod tests {
     use {TxResult, TxError};
-    use ipv4::Ipv4Tx;
+    use icmp::{IcmpTypes, EchoCodes};
+    use ipv4::{Ipv4Tx, IpNextHeaderProtocol, IpNextHeaderProtocols};
 
     use pnet::packet::Packet;
-    use pnet::packet::icmp::IcmpTypes;
     use pnet::packet::icmp::echo_request::EchoRequestPacket;
-    use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 
     use std::error::Error;
     use std::net::Ipv4Addr;
@@ -120,7 +119,7 @@ mod tests {
         let data = read_handle.try_recv().expect("Expected echo packet");
         let echo_pkg = EchoRequestPacket::new(&data).unwrap();
         assert_eq!(IcmpTypes::EchoRequest, echo_pkg.get_icmp_type());
-        assert_eq!(IcmpCodes::NoCode, echo_pkg.get_icmp_code());
+        assert_eq!(EchoCodes::NoCode, echo_pkg.get_icmp_code());
         assert_eq!(61128, echo_pkg.get_checksum()); // For ident&seq == 0
         assert_eq!([9, 55], echo_pkg.payload());
     }

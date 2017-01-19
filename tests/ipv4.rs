@@ -7,14 +7,12 @@ extern crate lazy_static;
 use ipnetwork::Ipv4Network;
 
 use pnet::packet::{MutablePacket, Packet};
-use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
-use pnet::packet::ip::IpNextHeaderProtocols;
+use pnet::packet::ethernet::{EthernetPacket, MutableEthernetPacket};
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
-use pnet::util::MacAddr;
 
 use rips::{rx, testing, NetworkStack, DatalinkTx, CustomPayload, Tx};
-use rips::ethernet::{EthernetRx, EthernetTx};
-use rips::ipv4::{BasicIpv4Listener, Ipv4Fields, Ipv4Rx, Ipv4Tx};
+use rips::ethernet::{EthernetRx, EthernetTx, MacAddr, EtherTypes};
+use rips::ipv4::{BasicIpv4Listener, Ipv4Fields, Ipv4Rx, Ipv4Tx, IpNextHeaderProtocols};
 
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
