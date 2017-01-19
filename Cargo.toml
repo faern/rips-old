@@ -11,7 +11,7 @@ readme = "README.md"
 
 [dependencies]
 ipnetwork = "0.10.0"
-pnet = "0.15.0"
+pnet = "0.16.0"
 log = "0.3"
 rand = "0.3"
 lazy_static = "^0.2"
