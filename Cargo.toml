@@ -22,6 +22,7 @@ lazy_static = "^0.2"
 [features]
 default = []
 bench = []
+netmap = ["pnet/netmap"]
 
 #[dependencies.pnet]
 #git = "https://github.com/faern/libpnet"
