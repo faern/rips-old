@@ -13,6 +13,16 @@ struct RouteEntry {
     pub interface: Interface,
 }
 
+impl RouteEntry {
+    pub fn new(net: Ipv4Network, gw: Option<Ipv4Addr>, interface: Interface) -> Self {
+        RouteEntry {
+            net: net,
+            gw: gw,
+            interface: interface,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct RoutingTable {
     table: BTreeMap<u8, Vec<RouteEntry>>,
@@ -27,11 +37,7 @@ impl RoutingTable {
     // TODO: Increment Tx version counter
     pub fn add_route(&mut self, net: Ipv4Network, gw: Option<Ipv4Addr>, interface: Interface) {
         let prefix = net.prefix();
-        let entry = RouteEntry {
-            net: net,
-            gw: gw,
-            interface: interface,
-        };
+        let entry = RouteEntry::new(net, gw, interface);
         self.table.entry(prefix).or_insert_with(Vec::new).push(entry);
     }
 
@@ -50,6 +56,8 @@ impl RoutingTable {
 
 #[cfg(test)]
 mod tests {
+
+    use super::*;
     use Interface;
 
     use ipnetwork::Ipv4Network;
@@ -57,8 +65,6 @@ mod tests {
 
     use std::net::Ipv4Addr;
     use std::str::FromStr;
-
-    use super::*;
 
     #[test]
     fn empty() {
