@@ -1,7 +1,7 @@
 use {EthernetChannel, Interface, RoutingTable, TxError, TxResult, Tx, Payload};
 use StackError;
-use arp::{self, ArpPayload, ArpTx, ArpTable};
-use ethernet::{EthernetRx, EthernetTx, MacAddr};
+use arp::{self, ArpPayload, ArpTx, ArpTable, ArpRx};
+use ethernet::{EthernetRx, EthernetTx, MacAddr, EthernetListener};
 use icmp::{IcmpTx, IcmpType, IcmpRx, IcmpListener, IcmpListenerLookup};
 
 use ipnetwork::Ipv4Network;
@@ -95,9 +95,7 @@ impl StackInterfaceThread {
             data: data,
             arp_table: arp_table,
         };
-        let thread_handle = thread::spawn(move || {
-            stack_interface_thread.run();
-        });
+        let thread_handle = thread::spawn(move || { stack_interface_thread.run(); });
         StackInterfaceThreadHandle {
             handle: Some(thread_handle),
             tx: thread_tx,
@@ -177,7 +175,7 @@ impl StackInterface {
         let thread_handle = StackInterfaceThread::spawn(stack_interface_data.clone(),
                                                         arp_table.clone());
 
-        let arp_rx = arp_table.arp_rx(thread_handle.tx.clone());
+        let arp_rx = Box::new(ArpRx::new(thread_handle.tx.clone())) as Box<EthernetListener>;
 
         let ipv4_listeners = Arc::new(Mutex::new(HashMap::new()));
         let ipv4_rx = Ipv4Rx::new(ipv4_listeners.clone());
@@ -558,9 +556,8 @@ impl TxBarrier {
         if max_packets_per_call == 0 {
             return Err(TxError::TooLargePayload);
         }
-        let mut ethernet_payload = |mut packet: MutableEthernetPacket| {
-            payload.build(packet.packet_mut());
-        };
+        let mut ethernet_payload =
+            |mut packet: MutableEthernetPacket| { payload.build(packet.packet_mut()); };
         while packets_left > 0 {
             let num_packets = cmp::min(packets_left, max_packets_per_call);
             self.tx

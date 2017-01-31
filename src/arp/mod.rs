@@ -44,20 +44,6 @@ impl ArpTable {
         ArpTable { data: data }
     }
 
-    pub fn data(&self) -> Arc<Mutex<TableData>> {
-        self.data.clone()
-    }
-
-    /// Creates a new `ArpRx` cast to a `Box<EthernetListener>` so that it can
-    /// easily be added
-    /// to a `Vec` and passed to `EthernetRx` as a listener.
-    /// The `ArpRx` created here will share the table with this `ArpTable`.
-    /// The given `VersionedTx` will have its revision bumped upon incoming Arp
-    /// packet.
-    pub fn arp_rx(&self, listener: Sender<StackInterfaceMsg>) -> Box<EthernetListener> {
-        Box::new(ArpRx::new(listener)) as Box<EthernetListener>
-    }
-
     /// Queries the table for a MAC. If it does not exist a request is sent and
     /// the call is blocked
     /// until a reply has arrived
