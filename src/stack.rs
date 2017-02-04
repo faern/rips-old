@@ -319,14 +319,14 @@ impl Drop for StackInterface {
 #[derive(Default)]
 pub struct NetworkStack {
     interfaces: HashMap<Interface, StackInterface>,
-    routing_table: Arc<RwLock<RoutingTable>>,
+    routing_table: RoutingTable,
 }
 
 impl NetworkStack {
     pub fn new() -> NetworkStack {
         NetworkStack {
             interfaces: HashMap::new(),
-            routing_table: Arc::new(RwLock::new(RoutingTable::new())),
+            routing_table: RoutingTable::new(),
         }
     }
 
@@ -364,20 +364,20 @@ impl NetworkStack {
         Err(StackError::InvalidInterface)
     }
 
-    pub fn routing_table(&mut self) -> Arc<RwLock<RoutingTable>> {
-        self.routing_table.clone()
+    pub fn routing_table(&mut self) -> &mut RoutingTable {
+        &mut self.routing_table
     }
 
     /// Attach an IPv4 network to an interface.
     /// TODO: Deprecate and make the routing stuff better instead
     pub fn add_ipv4(&mut self, interface: &Interface, ip_net: Ipv4Network) -> StackResult<()> {
         self.interface(interface)?.add_ipv4(ip_net)?;
-        self.routing_table.write().unwrap().add_route(ip_net, None, interface.clone());
+        self.routing_table.add_route(ip_net, None, interface.clone());
         Ok(())
     }
 
     pub fn ipv4_tx(&mut self, dst: Ipv4Addr) -> StackResult<Ipv4Tx<EthernetTx<DatalinkTx>>> {
-        if let Some((gw, interface)) = self.routing_table.read().unwrap().route(dst) {
+        if let Some((gw, interface)) = self.routing_table.route(dst) {
             if let Some(stack_interface) = self.interfaces.get_mut(&interface) {
                 stack_interface.ipv4_tx(dst, gw)
             } else {
