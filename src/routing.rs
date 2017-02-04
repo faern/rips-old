@@ -6,8 +6,8 @@ use std::collections::BTreeMap;
 use std::net::Ipv4Addr;
 
 // TODO: Add metric
-#[derive(Debug)]
-struct RouteEntry {
+#[derive(Debug, Clone)]
+pub struct RouteEntry {
     pub net: Ipv4Network,
     pub gw: Option<Ipv4Addr>,
     pub interface: Interface,
@@ -50,6 +50,13 @@ impl RoutingTable {
             }
         }
         None
+    }
+
+    pub fn get_entries(&self) -> Vec<RouteEntry> {
+        self.table.values().fold(Vec::new(), |mut vec, entry| {
+            vec.extend_from_slice(entry);
+            vec
+        })
     }
 }
 
@@ -119,6 +126,28 @@ mod tests {
         let (out_gw2, out_eth2) = table.route(Ipv4Addr::new(10, 0, 0, 99)).unwrap();
         assert_eq!(out_gw2, Some(gw));
         assert_eq!(out_eth2, iface("eth1"));
+    }
+
+    #[test]
+    fn get_entries_empty() {
+        let mut table = RoutingTable::new();
+        assert!(table.get_entries().is_empty());
+    }
+
+    #[test]
+    fn get_entries_one() {
+        let mut table = RoutingTable::new();
+        let net = Ipv4Network::from_str("10/16").unwrap();
+        let gw = None;
+        let iface = iface("eth0");
+
+        table.add_route(net, gw, iface.clone());
+        let mut entries = table.get_entries();
+        assert_eq!(1, entries.len());
+        let entry = entries.pop().unwrap();
+        assert_eq!(net, entry.net);
+        assert_eq!(gw, entry.gw);
+        assert_eq!(iface, entry.interface);
     }
 
     fn iface(name: &str) -> Interface {
