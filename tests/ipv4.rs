@@ -31,13 +31,13 @@ lazy_static! {
 
 #[test]
 fn simple_send() {
-    let (_stack, mut ipv4_tx, read_handle) = prepare_ipv4_tx(*LAN_DST_IP, *LAN_DST_MAC);
+    let mut dummy = dummy_ipv4_tx(*LAN_DST_IP, *LAN_DST_MAC);
 
     let data = &[100, 99];
     let mut payload = CustomPayload::new(Ipv4Fields(IpNextHeaderProtocols::Igmp), data);
-    ipv4_tx.send(&mut payload).unwrap().expect("Error while sending");
+    dummy.tx.send(&mut payload).unwrap().expect("Error while sending");
 
-    let pkg = read_handle.try_recv().unwrap();
+    let pkg = dummy.read_handle.try_recv().unwrap();
 
     let eth_pkg = EthernetPacket::new(&pkg).unwrap();
     assert_eq!(eth_pkg.get_destination(), *LAN_DST_MAC);
@@ -52,9 +52,13 @@ fn simple_send() {
     assert_eq!(ip_pkg.payload(), [100, 99]);
 }
 
-fn prepare_ipv4_tx(dst_ip: Ipv4Addr,
-                   dst_mac: MacAddr)
-                   -> (NetworkStack, Ipv4Tx<EthernetTx<DatalinkTx>>, Receiver<Box<[u8]>>) {
+struct DummyIpv4Tx {
+    _stack: NetworkStack,
+    tx: Ipv4Tx<EthernetTx<DatalinkTx>>,
+    read_handle: Receiver<Box<[u8]>>,
+}
+
+fn dummy_ipv4_tx(dst_ip: Ipv4Addr, dst_mac: MacAddr) -> DummyIpv4Tx {
     let mut dummy = helper::dummy_stack();
     dummy.stack.interface(&dummy.interface).unwrap().arp_table().insert(dst_ip, dst_mac);
 
@@ -62,7 +66,11 @@ fn prepare_ipv4_tx(dst_ip: Ipv4Addr,
     dummy.stack.add_ipv4(&dummy.interface, net).unwrap();
     let ipv4_tx = dummy.stack.ipv4_tx(dst_ip).unwrap();
 
-    (dummy.stack, ipv4_tx, dummy.read_handle)
+    DummyIpv4Tx {
+        _stack: dummy.stack,
+        tx: ipv4_tx,
+        read_handle: dummy.read_handle,
+    }
 }
 
 // TODO: Deprecate or change this test. It does not test the stack at all, just
