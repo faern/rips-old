@@ -1,10 +1,9 @@
 use {Tx, Payload, CustomPayload, TxResult};
-use ipv4::Ipv4Fields;
+use ipv4::{Ipv4Fields, IpNextHeaderProtocols};
 
 use pnet::packet::MutablePacket;
 use pnet::packet::icmp::{IcmpCode, IcmpType, MutableIcmpPacket, checksum, IcmpTypes};
 use pnet::packet::icmp::echo_request::{IcmpCodes, MutableEchoRequestPacket};
-use pnet::packet::ip::IpNextHeaderProtocols;
 
 pub struct IcmpFields {
     pub icmp_type: IcmpType,
@@ -97,16 +96,11 @@ impl<'p, P: Payload<IcmpFields>> Payload<Ipv4Fields> for IcmpBuilder<'p, P> {
 mod tests {
 
     use super::*;
-    use {TxResult, TxError};
     use icmp::{IcmpTypes, EchoCodes};
-    use ipv4::{Ipv4Tx, IpNextHeaderProtocol, IpNextHeaderProtocols};
 
     use pnet::packet::Packet;
     use pnet::packet::icmp::echo_request::EchoRequestPacket;
 
-    use std::error::Error;
-    use std::net::Ipv4Addr;
-    use std::sync::mpsc::{self, Sender, Receiver};
     use testing::MockTx;
 
     #[test]
@@ -114,7 +108,8 @@ mod tests {
         let (tx, read_handle) = MockTx::new();
 
         let mut testee = IcmpTx::new(tx);
-        testee.send_echo(&[9, 55]).unwrap();
+        let tx_result = testee.send_echo(&[9, 55]).unwrap();
+        assert!(tx_result.is_ok());
 
         let data = read_handle.try_recv().expect("Expected echo packet");
         let echo_pkg = EchoRequestPacket::new(&data).unwrap();

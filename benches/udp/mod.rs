@@ -4,9 +4,9 @@ use ipnetwork::Ipv4Network;
 use pnet::packet::MutablePacket;
 use pnet::packet::ethernet::MutableEthernetPacket;
 use pnet::packet::ipv4::MutableIpv4Packet;
-use pnet::util::MacAddr;
 
 use rips::{self, NetworkStack};
+use rips::ethernet::MacAddr;
 use rips::udp::UdpSocket as RipsUdpSocket;
 
 use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket as StdUdpSocket};

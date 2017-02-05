@@ -1,11 +1,10 @@
 
 
-use super::{MORE_FRAGMENTS, NO_FLAGS};
+use super::{MORE_FRAGMENTS, NO_FLAGS, IpNextHeaderProtocol};
 use {Payload, TxResult, Tx};
 use ethernet::{EthernetFields, EtherTypes};
 
 use pnet::packet::{MutablePacket, Packet};
-use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 
 use rand::{thread_rng, Rng};
@@ -164,18 +163,13 @@ impl<'p, P: Payload<Ipv4Fields>> Payload<EthernetFields> for Ipv4Builder<'p, P> 
 mod tests {
 
     use super::*;
-    use super::super::MORE_FRAGMENTS;
-    use {TxResult, TxError, Tx, CustomPayload, Payload};
-    use ethernet::EthernetTx;
+    use super::super::{MORE_FRAGMENTS, IpNextHeaderProtocols};
+    use {Tx, CustomPayload, Payload};
 
     use pnet::packet::Packet;
-    use pnet::packet::ip::IpNextHeaderProtocols;
     use pnet::packet::ipv4::Ipv4Packet;
-    use pnet::util::MacAddr;
 
-    use std::error::Error;
     use std::net::Ipv4Addr;
-    use std::sync::mpsc;
     use testing::MockTx;
 
     lazy_static! {
@@ -325,7 +319,7 @@ mod tests {
         let mut payload = CustomPayload::new(Ipv4Fields(IpNextHeaderProtocols::Tcp), data);
 
         let mut testee = Ipv4Tx::new(tx, *SRC, *DST, 20 + 8);
-        testee.send(&mut payload).unwrap();
+        testee.send(&mut payload).unwrap().unwrap();
 
         let pkg1 = rx.try_recv().unwrap();
         let pkg2 = rx.try_recv().unwrap();
@@ -343,7 +337,7 @@ mod tests {
         let mut payload = CustomPayload::exact(*FIELDS, 2, 9, &data);
 
         let mut testee = Ipv4Tx::new(tx, *SRC, *DST, 20 + 8);
-        testee.send(&mut payload).unwrap();
+        testee.send(&mut payload).unwrap().unwrap();
 
         let pkg1_1 = rx.try_recv().unwrap();
         let pkg1_2 = rx.try_recv().unwrap();
@@ -372,7 +366,7 @@ mod tests {
 
         let data = (0..100).collect::<Vec<u8>>();
         let mut payload = CustomPayload::new(Ipv4Fields(IpNextHeaderProtocols::Tcp), &data);
-        ipv4_tx.send(&mut payload).unwrap();
+        ipv4_tx.send(&mut payload).unwrap().unwrap();
 
         let pkg = rx.try_recv().unwrap();
         assert!(rx.try_recv().is_err());

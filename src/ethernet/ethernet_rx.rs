@@ -1,6 +1,9 @@
 use {RxResult, RxError};
+use ethernet::EtherType;
+
 use pnet::packet::Packet;
-use pnet::packet::ethernet::{EtherType, EthernetPacket};
+use pnet::packet::ethernet::EthernetPacket;
+
 use rx::RxListener;
 
 use std::collections::HashMap;
@@ -96,12 +99,12 @@ impl RxListener for EthernetRx {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use RxError;
+    use ethernet::{EtherType, EtherTypes};
 
     use pnet::packet::Packet;
-    use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEthernetPacket};
+    use pnet::packet::ethernet::{EthernetPacket, MutableEthernetPacket};
 
     use rx::RxListener;
 

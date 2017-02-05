@@ -94,9 +94,9 @@ mod tests {
 
     use super::*;
     use Interface;
+    use ethernet::MacAddr;
 
     use ipnetwork::Ipv4Network;
-    use pnet::util::MacAddr;
 
     use std::net::Ipv4Addr;
     use std::str::FromStr;
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn get_entries_empty() {
-        let mut table = RoutingTable::new();
+        let table = RoutingTable::new();
         assert!(table.get_entries().is_empty());
     }
 

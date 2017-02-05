@@ -1,7 +1,5 @@
-use ethernet::EthernetListener;
+use ethernet::MacAddr;
 
-use pnet::util::MacAddr;
-use stack::StackInterfaceMsg;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex};

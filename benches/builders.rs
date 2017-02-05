@@ -6,12 +6,10 @@ extern crate pnet;
 extern crate rips;
 extern crate test;
 
-use pnet::packet::ethernet::EtherTypes;
-use pnet::packet::ip::IpNextHeaderProtocols;
 
 use rips::{Payload, CustomPayload};
-use rips::ethernet::{MacAddr, EthernetBuilder, EthernetFields};
-use rips::ipv4::{Ipv4Builder, Ipv4Fields};
+use rips::ethernet::{MacAddr, EthernetBuilder, EthernetFields, EtherTypes};
+use rips::ipv4::{Ipv4Builder, Ipv4Fields, IpNextHeaderProtocols};
 use rips::udp::UdpBuilder;
 
 use std::net::{Ipv4Addr, SocketAddrV4};

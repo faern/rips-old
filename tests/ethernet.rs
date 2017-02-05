@@ -2,10 +2,10 @@ extern crate pnet;
 extern crate rips;
 
 use pnet::packet::Packet;
-use pnet::packet::ethernet::{EtherTypes, EthernetPacket};
+use pnet::packet::ethernet::EthernetPacket;
 
 use rips::{CustomPayload, Tx};
-use rips::ethernet::{MacAddr, EthernetFields};
+use rips::ethernet::{MacAddr, EthernetFields, EtherTypes};
 
 mod helper;
 

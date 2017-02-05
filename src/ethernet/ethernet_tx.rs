@@ -86,17 +86,13 @@ impl<'p, P: Payload<EthernetFields>> Payload<()> for EthernetBuilder<'p, P> {
 
 
 #[cfg(test)]
-mod ethernet_tx_tests {
-
+mod tests {
     use super::*;
-    use {TxResult, TxError, Tx, Payload, CustomPayload};
+    use {Payload, CustomPayload};
+    use ethernet::{EtherTypes, MacAddr};
 
     use pnet::packet::Packet;
-    use pnet::packet::ethernet::{EtherTypes, EthernetPacket};
-    use pnet::util::MacAddr;
-
-    use std::error::Error;
-    use std::sync::mpsc::{self, Sender, Receiver};
+    use pnet::packet::ethernet::EthernetPacket;
 
     lazy_static! {
         static ref SRC: MacAddr = MacAddr::new(0, 0, 0, 0, 0, 1);

@@ -8,11 +8,11 @@ use ipnetwork::Ipv4Network;
 
 use pnet::packet::{MutablePacket, Packet};
 use pnet::packet::arp::{ArpPacket, MutableArpPacket, ArpOperations};
-use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
-use pnet::util::MacAddr;
+use pnet::packet::ethernet::{EthernetPacket, MutableEthernetPacket};
 
 use rips::Tx;
 use rips::arp::ArpPayload;
+use rips::ethernet::{EtherTypes, MacAddr};
 
 use std::io;
 use std::net::Ipv4Addr;

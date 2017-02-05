@@ -5,11 +5,12 @@ extern crate rips;
 use ipnetwork::Ipv4Network;
 
 use pnet::packet::MutablePacket;
-use pnet::packet::ethernet::{EtherTypes, MutableEthernetPacket};
-use pnet::packet::ip::IpNextHeaderProtocols;
+use pnet::packet::ethernet::MutableEthernetPacket;
 use pnet::packet::ipv4::{MutableIpv4Packet, checksum};
 use pnet::packet::udp::MutableUdpPacket;
 
+use rips::ethernet::EtherTypes;
+use rips::ipv4::IpNextHeaderProtocols;
 use rips::udp::UdpSocket;
 
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};

@@ -172,6 +172,7 @@
 extern crate rand;
 extern crate pnet;
 extern crate ipnetwork;
+#[cfg(test)]
 #[macro_use]
 extern crate lazy_static;
 

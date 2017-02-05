@@ -1,9 +1,9 @@
 use {RxResult, RxError};
-use ethernet::EthernetListener;
+use ethernet::{EthernetListener, EtherType, EtherTypes};
 
 use pnet::packet::Packet;
 use pnet::packet::arp::{ArpPacket, ArpOperations};
-use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
+use pnet::packet::ethernet::EthernetPacket;
 use stack::StackInterfaceMsg;
 
 use std::mem::drop;
