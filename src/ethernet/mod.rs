@@ -4,8 +4,8 @@
 mod ethernet_rx;
 mod ethernet_tx;
 
-pub use pnet::packet::ethernet::{EtherType, EtherTypes};
-pub use pnet::util::MacAddr;
 
 pub use self::ethernet_rx::{BasicEthernetListener, EthernetListener, EthernetRx};
 pub use self::ethernet_tx::{EthernetBuilder, EthernetFields, EthernetTx};
+pub use pnet::packet::ethernet::{EtherType, EtherTypes};
+pub use pnet::util::MacAddr;

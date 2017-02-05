@@ -1,3 +1,6 @@
+
+
+use super::{MORE_FRAGMENTS, NO_FLAGS};
 use {Payload, TxResult, Tx};
 use ethernet::{EthernetFields, EtherTypes};
 
@@ -8,8 +11,6 @@ use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 use rand::{thread_rng, Rng};
 use std::cmp;
 use std::net::Ipv4Addr;
-
-use super::{MORE_FRAGMENTS, NO_FLAGS};
 
 #[derive(Copy, Clone)]
 pub struct Ipv4Fields(pub IpNextHeaderProtocol);
@@ -161,6 +162,9 @@ impl<'p, P: Payload<Ipv4Fields>> Payload<EthernetFields> for Ipv4Builder<'p, P> 
 
 #[cfg(test)]
 mod tests {
+
+    use super::*;
+    use super::super::MORE_FRAGMENTS;
     use {TxResult, TxError, Tx, CustomPayload, Payload};
     use ethernet::EthernetTx;
 
@@ -172,9 +176,6 @@ mod tests {
     use std::error::Error;
     use std::net::Ipv4Addr;
     use std::sync::mpsc;
-
-    use super::*;
-    use super::super::MORE_FRAGMENTS;
     use testing::MockTx;
 
     lazy_static! {

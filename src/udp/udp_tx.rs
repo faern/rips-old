@@ -95,11 +95,11 @@ impl<'a> Payload<Ipv4Fields> for UdpBuilder<'a> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use Payload;
     use pnet::packet::Packet;
     use pnet::packet::udp::UdpPacket;
     use std::net::{Ipv4Addr, SocketAddrV4};
-    use super::*;
 
     lazy_static! {
         static ref ADDR1: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::new(10, 99, 250, 15), 8080);

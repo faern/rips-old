@@ -1,7 +1,7 @@
-use ::{RxResult, RxError};
+use {RxResult, RxError};
 use pnet::packet::Packet;
 use pnet::packet::ethernet::{EtherType, EthernetPacket};
-use ::rx::RxListener;
+use rx::RxListener;
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -96,6 +96,8 @@ impl RxListener for EthernetRx {
 
 #[cfg(test)]
 mod tests {
+
+    use super::*;
     use RxError;
 
     use pnet::packet::Packet;
@@ -105,8 +107,6 @@ mod tests {
 
     use std::sync::mpsc::{self, Receiver};
     use std::time::SystemTime;
-
-    use super::*;
 
     #[test]
     fn basic_ethernet_listener_ether_type() {

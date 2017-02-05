@@ -1,3 +1,6 @@
+
+
+use super::{MORE_FRAGMENTS, NO_FLAGS};
 use {RxError, RxResult};
 use ethernet::EthernetListener;
 
@@ -11,8 +14,6 @@ use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;
 use std::time::SystemTime;
-
-use super::{MORE_FRAGMENTS, NO_FLAGS};
 use util::Buffer;
 
 /// Anyone interested in receiving IPv4 packets from `Ipv4` must implement this.

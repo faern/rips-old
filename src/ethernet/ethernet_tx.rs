@@ -1,9 +1,10 @@
+
+
+use super::{MacAddr, EtherType};
 use {Payload, Tx, TxResult};
 
 use pnet::packet::MutablePacket;
 use pnet::packet::ethernet::{EthernetPacket, MutableEthernetPacket};
-
-use super::{MacAddr, EtherType};
 
 #[derive(Clone, Copy)]
 pub struct EthernetFields(pub EtherType);
@@ -86,6 +87,8 @@ impl<'p, P: Payload<EthernetFields>> Payload<()> for EthernetBuilder<'p, P> {
 
 #[cfg(test)]
 mod ethernet_tx_tests {
+
+    use super::*;
     use {TxResult, TxError, Tx, Payload, CustomPayload};
 
     use pnet::packet::Packet;
@@ -94,8 +97,6 @@ mod ethernet_tx_tests {
 
     use std::error::Error;
     use std::sync::mpsc::{self, Sender, Receiver};
-
-    use super::*;
 
     lazy_static! {
         static ref SRC: MacAddr = MacAddr::new(0, 0, 0, 0, 0, 1);

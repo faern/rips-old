@@ -55,10 +55,10 @@ impl<K, V> CacheMap<K, V>
 
 #[cfg(test)]
 mod tests {
-    use std::thread::sleep;
-    use std::time::Duration;
 
     use super::*;
+    use std::thread::sleep;
+    use std::time::Duration;
 
     #[test]
     fn shortlived() {

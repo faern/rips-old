@@ -14,9 +14,7 @@ pub fn spawn<L>(receiver: Box<EthernetDataLinkReceiver>, listener: L)
     where L: RxListener + 'static
 {
     let rx_thread = RxThread::new(receiver, listener);
-    thread::spawn(move || {
-        rx_thread.run();
-    });
+    thread::spawn(move || { rx_thread.run(); });
 }
 
 struct RxThread<L: RxListener> {

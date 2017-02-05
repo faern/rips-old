@@ -12,6 +12,8 @@ pub const NO_FLAGS: u8 = 0b000;
 
 #[cfg(test)]
 mod tests {
+
+    use super::*;
     use RxError;
     use ethernet::EthernetListener;
 
@@ -24,8 +26,6 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use std::sync::mpsc::{self, Receiver};
     use std::time::SystemTime;
-
-    use super::*;
 
     #[test]
     fn rx_not_fragmented() {

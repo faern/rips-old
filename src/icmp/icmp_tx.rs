@@ -95,6 +95,8 @@ impl<'p, P: Payload<IcmpFields>> Payload<Ipv4Fields> for IcmpBuilder<'p, P> {
 
 #[cfg(test)]
 mod tests {
+
+    use super::*;
     use {TxResult, TxError};
     use icmp::{IcmpTypes, EchoCodes};
     use ipv4::{Ipv4Tx, IpNextHeaderProtocol, IpNextHeaderProtocols};
@@ -105,8 +107,6 @@ mod tests {
     use std::error::Error;
     use std::net::Ipv4Addr;
     use std::sync::mpsc::{self, Sender, Receiver};
-
-    use super::*;
     use testing::MockTx;
 
     #[test]
