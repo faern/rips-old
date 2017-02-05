@@ -10,7 +10,7 @@ use pnet::packet::{MutablePacket, Packet};
 use pnet::packet::ethernet::{EthernetPacket, MutableEthernetPacket};
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 
-use rips::{rx, testing, NetworkStack, DatalinkTx, CustomPayload, Tx};
+use rips::{rx, NetworkStack, DatalinkTx, CustomPayload, Tx};
 use rips::ethernet::{EthernetRx, EthernetTx, MacAddr, EtherTypes};
 use rips::ipv4::{BasicIpv4Listener, Ipv4Fields, Ipv4Rx, Ipv4Tx, IpNextHeaderProtocols};
 
@@ -20,6 +20,8 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::sync::mpsc::Receiver;
 use std::thread;
 use std::time::Duration;
+
+mod helper;
 
 lazy_static! {
     static ref SRC_IP: Ipv4Addr = Ipv4Addr::new(10, 0, 0, 3);
@@ -53,7 +55,7 @@ fn simple_send() {
 fn prepare_ipv4_tx(dst_ip: Ipv4Addr,
                    dst_mac: MacAddr)
                    -> (NetworkStack, Ipv4Tx<EthernetTx<DatalinkTx>>, Receiver<Box<[u8]>>) {
-    let (mut stack, interface, _, read_handle) = testing::dummy_stack();
+    let (mut stack, interface, _, read_handle) = helper::dummy_stack();
 
     stack.interface(&interface).unwrap().arp_table().insert(dst_ip, dst_mac);
     let config = Ipv4Network::new(*SRC_IP, 24).unwrap();
@@ -77,7 +79,7 @@ fn custom_igmp_recv() {
     let mut ipv4_listeners = HashMap::new();
     ipv4_listeners.insert(*LAN_DST_IP, ipv4_ip_listeners);
 
-    let (channel, _interface, inject_handle, _) = testing::dummy_ethernet();
+    let (channel, _interface, inject_handle, _) = helper::dummy_ethernet();
     let ipv4_rx = Ipv4Rx::new(Arc::new(Mutex::new(ipv4_listeners)));
     let ethernet_rx = EthernetRx::new(vec![ipv4_rx]);
     rx::spawn(channel.receiver, ethernet_rx);

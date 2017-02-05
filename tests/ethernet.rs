@@ -6,11 +6,12 @@ use pnet::packet::ethernet::{EtherTypes, EthernetPacket};
 
 use rips::{CustomPayload, Tx};
 use rips::ethernet::{MacAddr, EthernetFields};
-use rips::testing;
+
+mod helper;
 
 #[test]
 fn test_ethernet_send() {
-    let (mut stack, interface, _, read_handle) = testing::dummy_stack();
+    let (mut stack, interface, _, read_handle) = helper::dummy_stack();
     let stack_interface = stack.interface(&interface).unwrap();
     let src = interface.mac;
     let dst = MacAddr::new(6, 7, 8, 9, 10, 11);

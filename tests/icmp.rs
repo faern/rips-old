@@ -12,12 +12,13 @@ use rips::{Payload, CustomPayload};
 use rips::ethernet::{EthernetBuilder, MacAddr};
 use rips::icmp::{IcmpFields, IcmpBuilder, IcmpListener, IcmpTypes, EchoCodes};
 use rips::ipv4::{Ipv4Builder, IpNextHeaderProtocols};
-use rips::testing;
 
 use std::net::Ipv4Addr;
 use std::sync::mpsc;
 use std::thread;
 use std::time::{SystemTime, Duration};
+
+mod helper;
 
 #[derive(Clone)]
 pub struct MockIcmpListener {
@@ -42,7 +43,7 @@ fn recv_icmp() {
     let (tx, rx) = mpsc::channel();
     let listener = MockIcmpListener { tx: tx };
 
-    let (mut stack, interface, inject_handle, _) = testing::dummy_stack();
+    let (mut stack, interface, inject_handle, _) = helper::dummy_stack();
     stack.add_ipv4(&interface, local_net).unwrap();
     stack.icmp_listen(local_ip, IcmpTypes::EchoRequest, listener).unwrap();
 

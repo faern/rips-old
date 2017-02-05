@@ -9,3 +9,6 @@ extern crate pnet;
 extern crate rips;
 
 mod udp;
+
+#[path = "../tests/helper/mod.rs"]
+mod helper;

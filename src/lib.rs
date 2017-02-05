@@ -213,6 +213,7 @@ pub mod routing;
 
 mod util;
 
+#[cfg(test)]
 pub mod testing;
 
 mod stack;

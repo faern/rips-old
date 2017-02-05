@@ -10,19 +10,20 @@ use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::ipv4::{MutableIpv4Packet, checksum};
 use pnet::packet::udp::MutableUdpPacket;
 
-use rips::testing;
 use rips::udp::UdpSocket;
 
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
+mod helper;
+
 #[test]
 fn socket_listen() {
     let source_ip = Ipv4Addr::new(9, 8, 7, 6);
     let target_ip = Ipv4Addr::new(10, 9, 0, 254);
 
-    let (mut stack, interface, inject_handle, _) = testing::dummy_stack();
+    let (mut stack, interface, inject_handle, _) = helper::dummy_stack();
     stack.add_ipv4(&interface, Ipv4Network::from_str("10.9.0.254/16").unwrap()).unwrap();
     let stack = Arc::new(Mutex::new(stack));
 

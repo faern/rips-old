@@ -13,13 +13,14 @@ use pnet::util::MacAddr;
 
 use rips::Tx;
 use rips::arp::ArpPayload;
-use rips::testing;
 
 use std::io;
 use std::net::Ipv4Addr;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
+
+mod helper;
 
 lazy_static! {
     static ref SRC_MAC: MacAddr = MacAddr::new(1, 2, 3, 4, 5, 0);
@@ -29,7 +30,7 @@ lazy_static! {
 
 #[test]
 fn arp_invalidate_on_update() {
-    let (mut stack, interface, inject_handle, _) = testing::dummy_stack();
+    let (mut stack, interface, inject_handle, _) = helper::dummy_stack();
     let stack_interface = stack.interface(&interface).unwrap();
 
     let mut arp_request_tx = stack_interface.arp_request_tx();
@@ -48,7 +49,7 @@ fn arp_invalidate_on_update() {
 
 #[test]
 fn arp_reply_to_request() {
-    let (mut stack, interface, inject_handle, read_handle) = testing::dummy_stack();
+    let (mut stack, interface, inject_handle, read_handle) = helper::dummy_stack();
 
     let config = Ipv4Network::new(Ipv4Addr::new(10, 0, 0, 1), 24).unwrap();
     stack.add_ipv4(&interface, config).unwrap();
@@ -67,7 +68,7 @@ fn arp_locking() {
     let thread_count = 100;
     let dst = Ipv4Addr::new(10, 0, 0, 1);
 
-    let (mut stack, interface, inject_handle, read_handle) = testing::dummy_stack();
+    let (mut stack, interface, inject_handle, read_handle) = helper::dummy_stack();
     let stack_interface = stack.interface(&interface).unwrap();
 
     let arp_table = stack_interface.arp_table().clone();

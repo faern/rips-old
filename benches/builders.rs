@@ -8,11 +8,12 @@ extern crate test;
 
 use pnet::packet::ethernet::EtherTypes;
 use pnet::packet::ip::IpNextHeaderProtocols;
-use rips::MacAddr;
-use rips::Payload;
-use rips::ethernet::{EthernetBuilder, BasicEthernetPayload};
-use rips::ipv4::{Ipv4Builder, BasicIpv4Payload};
+
+use rips::{Payload, CustomPayload};
+use rips::ethernet::{MacAddr, EthernetBuilder, EthernetFields};
+use rips::ipv4::{Ipv4Builder, Ipv4Fields};
 use rips::udp::UdpBuilder;
+
 use std::net::{Ipv4Addr, SocketAddrV4};
 use test::Bencher;
 
@@ -20,15 +21,16 @@ lazy_static! {
     static ref MAC: MacAddr = MacAddr::new(00, 11, 22, 33, 44, 55);
     static ref IP: Ipv4Addr = Ipv4Addr::new(10, 0, 0, 3);
 
-    static ref ETHERNET_PAYLOAD: BasicEthernetPayload<'static> = BasicEthernetPayload::new(EtherTypes::Arp, &[]);
-    static ref IPV4_PAYLOAD: BasicIpv4Payload<'static> = BasicIpv4Payload::new(IpNextHeaderProtocols::Udp, &[]);
+    static ref ETHERNET_PAYLOAD: CustomPayload<'static, EthernetFields> = CustomPayload::new(EthernetFields(EtherTypes::Arp), &[]);
+    static ref IPV4_PAYLOAD: CustomPayload<'static, Ipv4Fields> = CustomPayload::new(Ipv4Fields(IpNextHeaderProtocols::Udp), &[]);
 }
 
 #[bench]
 fn ethernet(b: &mut Bencher) {
     let mut buffer = vec![0; 1024];
     b.iter(|| {
-        let mut builder = EthernetBuilder::new(*MAC, *MAC, (*ETHERNET_PAYLOAD).clone());
+        let mut payload = (*ETHERNET_PAYLOAD).clone();
+        let mut builder = EthernetBuilder::new(*MAC, *MAC, &mut payload);
         builder.build(&mut buffer)
     });
 }
@@ -37,7 +39,8 @@ fn ethernet(b: &mut Bencher) {
 fn ipv4(b: &mut Bencher) {
     let mut buffer = vec![0; 1024];
     b.iter(|| {
-        let mut builder = Ipv4Builder::new(*IP, *IP, 0, (*IPV4_PAYLOAD).clone());
+        let mut payload = (*IPV4_PAYLOAD).clone();
+        let mut builder = Ipv4Builder::new(*IP, *IP, 1000, &mut payload);
         builder.build(&mut buffer)
     });
 }
