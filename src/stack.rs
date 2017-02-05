@@ -374,7 +374,7 @@ impl NetworkStack {
         Err(StackError::InvalidInterface)
     }
 
-    pub fn routing_table<'a>(&'a mut self) -> StackRoutingTable<'a> {
+    pub fn routing_table(&mut self) -> StackRoutingTable {
         let interfaces = &mut self.interfaces;
         let callback = move || for interface in interfaces.values() {
             interface.inc();
