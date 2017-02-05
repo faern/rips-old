@@ -4,10 +4,14 @@ use rips::{EthernetChannel, Interface, NetworkStack};
 use std::io;
 use std::sync::mpsc::{Receiver, Sender};
 
-pub fn dummy_ethernet
-    ()
-    -> (EthernetChannel, Interface, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>)
-{
+pub struct DummyEthernet {
+    pub channel: EthernetChannel,
+    pub interface: Interface,
+    pub inject_handle: Sender<io::Result<Box<[u8]>>>,
+    pub read_handle: Receiver<Box<[u8]>>,
+}
+
+pub fn dummy_ethernet() -> DummyEthernet {
     let iface = dummy::dummy_interface(0);
     let mac = iface.mac.unwrap();
     let interface = Interface {
@@ -31,18 +35,32 @@ pub fn dummy_ethernet
         _ => panic!("Invalid channel type returned"),
     };
 
-    (channel, interface, inject_handle, read_handle)
+    DummyEthernet {
+        channel: channel,
+        interface: interface,
+        inject_handle: inject_handle,
+        read_handle: read_handle,
+    }
 }
 
-pub fn dummy_stack
-    ()
-    -> (NetworkStack, Interface, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>)
-{
-    let (channel, interface, inject_handle, read_handle) = dummy_ethernet();
+pub struct DummyStack {
+    pub stack: NetworkStack,
+    pub interface: Interface,
+    pub inject_handle: Sender<io::Result<Box<[u8]>>>,
+    pub read_handle: Receiver<Box<[u8]>>,
+}
+
+pub fn dummy_stack() -> DummyStack {
+    let dummy_ethernet = dummy_ethernet();
     let mut stack = NetworkStack::new();
-    stack.add_interface(interface.clone(), channel)
+    stack.add_interface(dummy_ethernet.interface.clone(), dummy_ethernet.channel)
         .expect("Not able to add dummy channel to stack");
-    (stack, interface, inject_handle, read_handle)
+    DummyStack {
+        stack: stack,
+        interface: dummy_ethernet.interface,
+        inject_handle: dummy_ethernet.inject_handle,
+        read_handle: dummy_ethernet.read_handle,
+    }
 }
 
 // pub fn dummy_icmp()

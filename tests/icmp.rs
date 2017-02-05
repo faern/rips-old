@@ -43,9 +43,9 @@ fn recv_icmp() {
     let (tx, rx) = mpsc::channel();
     let listener = MockIcmpListener { tx: tx };
 
-    let (mut stack, interface, inject_handle, _) = helper::dummy_stack();
-    stack.add_ipv4(&interface, local_net).unwrap();
-    stack.icmp_listen(local_ip, IcmpTypes::EchoRequest, listener).unwrap();
+    let mut dummy = helper::dummy_stack();
+    dummy.stack.add_ipv4(&dummy.interface, local_net).unwrap();
+    dummy.stack.icmp_listen(local_ip, IcmpTypes::EchoRequest, listener).unwrap();
 
     let data = &[6, 5];
     let mut payload = CustomPayload::new(IcmpFields::echo_request(), data);
@@ -55,7 +55,7 @@ fn recv_icmp() {
     let mut buffer = vec![0; eth_builder.packet_size()];
     eth_builder.build(&mut buffer);
 
-    inject_handle.send(Ok(buffer.into_boxed_slice())).unwrap();
+    dummy.inject_handle.send(Ok(buffer.into_boxed_slice())).unwrap();
     thread::sleep(Duration::from_millis(100));
 
     let pkg = rx.try_recv().expect("No packet received");

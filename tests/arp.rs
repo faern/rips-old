@@ -30,8 +30,8 @@ lazy_static! {
 
 #[test]
 fn arp_invalidate_on_update() {
-    let (mut stack, interface, inject_handle, _) = helper::dummy_stack();
-    let stack_interface = stack.interface(&interface).unwrap();
+    let mut dummy = helper::dummy_stack();
+    let stack_interface = dummy.stack.interface(&dummy.interface).unwrap();
 
     let mut arp_request_tx = stack_interface.arp_request_tx();
 
@@ -41,7 +41,7 @@ fn arp_invalidate_on_update() {
         .expect("Invalid Tx")
         .expect("Send error");
     // Inject Arp packet and wait for processing
-    send_arp_reply(inject_handle);
+    send_arp_reply(dummy.inject_handle);
     thread::sleep(Duration::from_millis(100));
     // Send should not work after incoming packet bumped stack version
     assert!(arp_request_tx.send(&mut payload).is_none());
@@ -49,15 +49,15 @@ fn arp_invalidate_on_update() {
 
 #[test]
 fn arp_reply_to_request() {
-    let (mut stack, interface, inject_handle, read_handle) = helper::dummy_stack();
+    let net = Ipv4Network::new(Ipv4Addr::new(10, 0, 0, 1), 24).unwrap();
 
-    let config = Ipv4Network::new(Ipv4Addr::new(10, 0, 0, 1), 24).unwrap();
-    stack.add_ipv4(&interface, config).unwrap();
+    let mut dummy = helper::dummy_stack();
+    dummy.stack.add_ipv4(&dummy.interface, net).unwrap();
 
-    send_arp_request(inject_handle);
+    send_arp_request(dummy.inject_handle);
     thread::sleep(Duration::from_millis(100));
 
-    let arp_request_u8 = read_handle.try_recv().unwrap();
+    let arp_request_u8 = dummy.read_handle.try_recv().unwrap();
     let arp_request_eth = EthernetPacket::new(&arp_request_u8[..]).unwrap();
     let arp_request = ArpPacket::new(arp_request_eth.payload()).unwrap();
     assert_eq!(ArpOperations::Reply, arp_request.get_operation());
@@ -68,8 +68,8 @@ fn arp_locking() {
     let thread_count = 100;
     let dst = Ipv4Addr::new(10, 0, 0, 1);
 
-    let (mut stack, interface, inject_handle, read_handle) = helper::dummy_stack();
-    let stack_interface = stack.interface(&interface).unwrap();
+    let mut dummy = helper::dummy_stack();
+    let stack_interface = dummy.stack.interface(&dummy.interface).unwrap();
 
     let arp_table = stack_interface.arp_table().clone();
     let mut arp_request_tx = stack_interface.arp_request_tx();
@@ -97,15 +97,15 @@ fn arp_locking() {
     assert!(arp_thread_rx.try_recv().is_err());
 
     // Check that the request was sent to the network
-    let arp_request_u8 = read_handle.recv().unwrap();
+    let arp_request_u8 = dummy.read_handle.recv().unwrap();
     let arp_request_eth = EthernetPacket::new(&arp_request_u8[..]).unwrap();
     let arp_request = ArpPacket::new(arp_request_eth.payload()).unwrap();
-    assert_eq!(interface.mac, arp_request.get_sender_hw_addr());
+    assert_eq!(dummy.interface.mac, arp_request.get_sender_hw_addr());
     assert_eq!(Ipv4Addr::new(10, 0, 0, 1),
                arp_request.get_target_proto_addr());
 
     // Inject Arp packet and wait for processing
-    send_arp_reply(inject_handle);
+    send_arp_reply(dummy.inject_handle);
     thread::sleep(Duration::new(1, 0));
 
     // Make sure all threads returned already, otherwise too slow

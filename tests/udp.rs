@@ -14,7 +14,6 @@ use rips::ipv4::IpNextHeaderProtocols;
 use rips::udp::UdpSocket;
 
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 mod helper;
@@ -23,10 +22,11 @@ mod helper;
 fn socket_listen() {
     let source_ip = Ipv4Addr::new(9, 8, 7, 6);
     let target_ip = Ipv4Addr::new(10, 9, 0, 254);
+    let local_net = Ipv4Network::new(target_ip, 16).unwrap();
 
-    let (mut stack, interface, inject_handle, _) = helper::dummy_stack();
-    stack.add_ipv4(&interface, Ipv4Network::from_str("10.9.0.254/16").unwrap()).unwrap();
-    let stack = Arc::new(Mutex::new(stack));
+    let mut dummy = helper::dummy_stack();
+    dummy.stack.add_ipv4(&dummy.interface, local_net).unwrap();
+    let stack = Arc::new(Mutex::new(dummy.stack));
 
     let socket = UdpSocket::bind(stack, "10.9.0.254:1024").unwrap();
 
@@ -48,7 +48,7 @@ fn socket_listen() {
         udp_pkg.set_length(8 + 4);
         udp_pkg.set_payload(&[5, 6, 7, 8]);
     }
-    inject_handle.send(Ok(buffer.into_boxed_slice())).unwrap();
+    dummy.inject_handle.send(Ok(buffer.into_boxed_slice())).unwrap();
 
     let mut buffer = vec![0; 4];
     let (len, from) = socket.recv_from(&mut buffer[..]).unwrap();
