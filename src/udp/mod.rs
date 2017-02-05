@@ -97,6 +97,6 @@ yet"
         if buf.len() > ::std::u16::MAX as usize {
             return Some(Err(TxError::TooLargePayload));
         }
-        self.tx_cache.get_mut(&dst).and_then(|udp_tx| udp_tx.send(&buf))
+        self.tx_cache.get_mut(&dst).and_then(|udp_tx| udp_tx.send(buf))
     }
 }

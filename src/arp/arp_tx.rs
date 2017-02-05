@@ -42,7 +42,7 @@ impl ArpPayload {
 
 impl Payload<ArpPayload> for ArpPayload {
     fn fields(&self) -> &Self {
-        &self
+        self
     }
     fn num_packets(&self) -> usize {
         1
