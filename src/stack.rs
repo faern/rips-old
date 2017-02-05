@@ -1,4 +1,4 @@
-use {EthernetChannel, Interface, RoutingTable, TxError, TxResult, Tx, Payload};
+use {EthernetChannel, Interface, TxError, TxResult, Tx, Payload};
 use StackError;
 use arp::{self, ArpPayload, ArpTx, ArpTable, ArpRx};
 use ethernet::{EthernetRx, EthernetTx, MacAddr, EthernetListener};
@@ -14,6 +14,8 @@ use pnet::packet::ethernet::MutableEthernetPacket;
 
 use rand;
 use rand::distributions::{IndependentSample, Range};
+
+use routing::{RoutingTable, StackRoutingTable};
 use rx;
 
 use std::cmp;
@@ -63,6 +65,10 @@ impl StackInterfaceData {
 
     fn arp_tx(&self, dst: MacAddr) -> ArpTx<EthernetTx<DatalinkTx>> {
         ArpTx::new(self.ethernet_tx(dst))
+    }
+
+    fn inc(&self) {
+        self.tx.lock().unwrap().inc();
     }
 }
 
@@ -125,7 +131,7 @@ impl StackInterfaceThread {
 
     fn update_arp(&mut self, ip: Ipv4Addr, mac: MacAddr) {
         if self.arp_table.insert(ip, mac) {
-            self.data.tx.lock().unwrap().inc();
+            self.data.inc();
         }
     }
 
@@ -292,7 +298,11 @@ impl StackInterface {
 
     pub fn set_mtu(&mut self, mtu: usize) {
         self.mtu = mtu;
-        self.data.tx.lock().unwrap().inc();
+        self.data.inc();
+    }
+
+    fn inc(&self) {
+        self.data.inc();
     }
 
     /// Finds which local IP is suitable as src ip for packets sent to `dst`.
@@ -309,7 +319,7 @@ impl StackInterface {
 
 impl Drop for StackInterface {
     fn drop(&mut self) {
-        self.data.tx.lock().unwrap().inc();
+        self.data.inc();
     }
 }
 
@@ -364,8 +374,12 @@ impl NetworkStack {
         Err(StackError::InvalidInterface)
     }
 
-    pub fn routing_table(&mut self) -> &mut RoutingTable {
-        &mut self.routing_table
+    pub fn routing_table<'a>(&'a mut self) -> StackRoutingTable<'a> {
+        let interfaces = &mut self.interfaces;
+        let callback = move || for interface in interfaces.values() {
+            interface.inc();
+        };
+        StackRoutingTable::new(&mut self.routing_table, Box::new(callback))
     }
 
     /// Attach an IPv4 network to an interface.

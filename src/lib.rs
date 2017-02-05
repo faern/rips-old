@@ -209,8 +209,7 @@ pub mod icmp;
 /// Module containing Udp functionality.
 pub mod udp;
 
-mod routing;
-pub use routing::RoutingTable;
+pub mod routing;
 
 mod util;
 

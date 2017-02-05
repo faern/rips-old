@@ -61,6 +61,34 @@ impl RoutingTable {
 }
 
 
+pub struct StackRoutingTable<'a> {
+    table: &'a mut RoutingTable,
+    change_callback: Box<FnMut() + 'a>,
+}
+
+impl<'a> StackRoutingTable<'a> {
+    pub fn new(table: &'a mut RoutingTable, change_callback: Box<FnMut() + 'a>) -> Self {
+        StackRoutingTable {
+            table: table,
+            change_callback: change_callback,
+        }
+    }
+
+    pub fn add_route(&mut self, net: Ipv4Network, gw: Option<Ipv4Addr>, interface: Interface) {
+        self.table.add_route(net, gw, interface);
+        (self.change_callback)();
+    }
+
+    pub fn route(&self, ip: Ipv4Addr) -> Option<(Option<Ipv4Addr>, Interface)> {
+        self.table.route(ip)
+    }
+
+    pub fn get_entries(&self) -> Vec<RouteEntry> {
+        self.table.get_entries()
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
 
