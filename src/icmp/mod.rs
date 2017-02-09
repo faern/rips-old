@@ -1,8 +1,13 @@
+pub use pnet::packet::icmp::{IcmpType, IcmpTypes, IcmpCode};
+pub use pnet::packet::icmp::destination_unreachable::IcmpCodes as DestinationUnreachableCodes;
+pub use pnet::packet::icmp::echo_request::IcmpCodes as EchoCodes;
+pub use pnet::packet::icmp::time_exceeded::IcmpCodes as TimeExceededCodes;
+
 mod icmp_rx;
 mod icmp_tx;
 
 pub use self::icmp_rx::{IcmpListener, IcmpListenerLookup, IcmpRx};
-pub use self::icmp_tx::{BasicIcmpPayload, IcmpBuilder, IcmpPayload, IcmpTx, PingBuilder};
+pub use self::icmp_tx::{IcmpFields, IcmpTx, IcmpBuilder /* , PingBuilder */};
 
 
 // pub struct PingSocket {

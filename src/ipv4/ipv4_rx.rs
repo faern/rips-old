@@ -1,9 +1,11 @@
+
+
+use super::{MORE_FRAGMENTS, NO_FLAGS, IpNextHeaderProtocol};
 use {RxError, RxResult};
-use ethernet::EthernetListener;
+use ethernet::{EthernetListener, EtherType, EtherTypes};
 
 use pnet::packet::Packet;
-use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
-use pnet::packet::ip::IpNextHeaderProtocol;
+use pnet::packet::ethernet::EthernetPacket;
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 
 use std::collections::HashMap;
@@ -12,7 +14,6 @@ use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;
 use std::time::SystemTime;
 
-use super::{MORE_FRAGMENTS, NO_FLAGS};
 use util::Buffer;
 
 /// Anyone interested in receiving IPv4 packets from `Ipv4` must implement this.

@@ -1,8 +1,10 @@
+pub use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+
 mod ipv4_rx;
 mod ipv4_tx;
 
 pub use self::ipv4_rx::{BasicIpv4Listener, IpListenerLookup, Ipv4Listener, Ipv4Rx};
-pub use self::ipv4_tx::{BasicIpv4Payload, Ipv4Builder, Ipv4Payload, Ipv4Tx, Ipv4TxImpl};
+pub use self::ipv4_tx::{Ipv4Fields, Ipv4Builder, Ipv4Tx};
 
 pub const MORE_FRAGMENTS: u8 = 0b001;
 pub const DONT_FRAGMENT: u8 = 0b010;
@@ -10,12 +12,13 @@ pub const NO_FLAGS: u8 = 0b000;
 
 #[cfg(test)]
 mod tests {
+
+    use super::*;
     use RxError;
     use ethernet::EthernetListener;
 
     use pnet::packet::MutablePacket;
     use pnet::packet::ethernet::MutableEthernetPacket;
-    use pnet::packet::ip::IpNextHeaderProtocols;
     use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 
     use std::collections::HashMap;
@@ -23,8 +26,6 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use std::sync::mpsc::{self, Receiver};
     use std::time::SystemTime;
-
-    use super::*;
 
     #[test]
     fn rx_not_fragmented() {

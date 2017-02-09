@@ -6,10 +6,6 @@ use std::io;
 /// network
 #[derive(Debug)]
 pub enum TxError {
-    /// Returned by `Tx` when trying to use an outdated `*Tx` instance. Please
-    /// construct a new one
-    InvalidTx,
-
     /// Returned when the payload does not fit in the given protocol. For
     /// example sending a
     /// packet with more than 2^16 bytes in a protocol with a 16 bit length
@@ -33,7 +29,6 @@ impl From<TxError> for io::Error {
     fn from(e: TxError) -> Self {
         let other = |msg| io::Error::new(io::ErrorKind::Other, msg);
         match e {
-            TxError::InvalidTx => other("Outdated constructor".to_owned()),
             TxError::TooLargePayload => other("Too large payload".to_owned()),
             TxError::IoError(e2) => e2,
             TxError::Other(msg) => other(format!("Other: {}", msg)),
@@ -57,7 +52,6 @@ impl Error for TxError {
     fn description(&self) -> &str {
         use TxError::*;
         match *self {
-            InvalidTx => "Invalid Tx instance",
             TooLargePayload => "Too large payload",
             IoError(..) => "IO error",
             Other(..) => "Other error",
@@ -190,6 +184,26 @@ impl Error for StackError {
             TxError(ref e) => Some(e),
             IoError(ref e) => Some(e),
             _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum ConversionError {
+    NoMacAddress,
+}
+
+impl fmt::Display for ConversionError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.write_str(self.description())
+    }
+}
+
+impl Error for ConversionError {
+    fn description(&self) -> &str {
+        use ConversionError::*;
+        match *self {
+            NoMacAddress => "No MAC address on interface",
         }
     }
 }

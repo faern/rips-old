@@ -1,7 +1,5 @@
-use ethernet::EthernetListener;
+use ethernet::MacAddr;
 
-use pnet::util::MacAddr;
-use stack::StackInterfaceMsg;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex};
@@ -12,7 +10,7 @@ mod arp_rx;
 mod arp_tx;
 
 pub use self::arp_rx::ArpRx;
-pub use self::arp_tx::{ArpBuilder, ArpRequestTx, ArpReplyTx};
+pub use self::arp_tx::{ArpTx, ArpBuilder, ArpPayload};
 
 #[derive(Default)]
 pub struct TableData {
@@ -42,20 +40,6 @@ impl ArpTable {
     pub fn new() -> ArpTable {
         let data = Arc::new(Mutex::new(TableData::new()));
         ArpTable { data: data }
-    }
-
-    pub fn data(&self) -> Arc<Mutex<TableData>> {
-        self.data.clone()
-    }
-
-    /// Creates a new `ArpRx` cast to a `Box<EthernetListener>` so that it can
-    /// easily be added
-    /// to a `Vec` and passed to `EthernetRx` as a listener.
-    /// The `ArpRx` created here will share the table with this `ArpTable`.
-    /// The given `VersionedTx` will have its revision bumped upon incoming Arp
-    /// packet.
-    pub fn arp_rx(&self, listener: Sender<StackInterfaceMsg>) -> Box<EthernetListener> {
-        Box::new(ArpRx::new(listener)) as Box<EthernetListener>
     }
 
     /// Queries the table for a MAC. If it does not exist a request is sent and

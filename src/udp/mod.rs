@@ -1,7 +1,7 @@
 use {NetworkStack, StackError, StackResult, DatalinkTx};
 use {TxError, TxResult};
-use ethernet::EthernetTxImpl;
-use ipv4::Ipv4TxImpl;
+use ethernet::EthernetTx;
+use ipv4::Ipv4Tx;
 
 use std::collections::HashMap;
 use std::io;
@@ -17,10 +17,11 @@ pub use self::udp_rx::{UdpListener, UdpListenerLookup, UdpRx};
 use self::udp_rx::UdpSocketReader;
 pub use self::udp_tx::{UdpBuilder, UdpTx};
 
+
 pub struct UdpSocket {
     socket_addr: SocketAddr,
     stack: Arc<Mutex<NetworkStack>>,
-    tx_cache: HashMap<SocketAddrV4, UdpTx<Ipv4TxImpl<EthernetTxImpl<DatalinkTx>>>>,
+    tx_cache: HashMap<SocketAddrV4, UdpTx<Ipv4Tx<EthernetTx<DatalinkTx>>>>,
     rx: Option<UdpSocketReader>,
 }
 
@@ -54,7 +55,9 @@ impl UdpSocket {
             }
             SocketAddr::V6(_dst) => {
                 Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                   "Rips does not support IPv6 yet".to_owned()))
+                                   "Rips does not support IPv6
+yet"
+                                       .to_owned()))
             }
         }
     }
@@ -74,7 +77,7 @@ impl UdpSocket {
 
     fn internal_send(&mut self, buf: &[u8], dst: SocketAddrV4) -> StackResult<()> {
         match self.internal_send_on_cached_tx(buf, dst) {
-            Err(TxError::InvalidTx) => {
+            None => {
                 let (dst_ip, dst_port) = (*dst.ip(), dst.port());
                 let new_udp_tx = {
                     let mut stack = self.stack.lock().unwrap();
@@ -83,19 +86,17 @@ impl UdpSocket {
                 self.tx_cache.insert(dst, new_udp_tx);
                 self.internal_send(buf, dst)
             }
-            result => result.map_err(StackError::TxError),
+            Some(result) => result.map_err(StackError::TxError),
         }
     }
 
-    fn internal_send_on_cached_tx(&mut self, buf: &[u8], dst: SocketAddrV4) -> TxResult {
+    fn internal_send_on_cached_tx(&mut self,
+                                  buf: &[u8],
+                                  dst: SocketAddrV4)
+                                  -> Option<TxResult<()>> {
         if buf.len() > ::std::u16::MAX as usize {
-            return Err(TxError::TooLargePayload);
+            return Some(Err(TxError::TooLargePayload));
         }
-        if let Some(udp_tx) = self.tx_cache.get_mut(&dst) {
-            udp_tx.send(buf)
-        } else {
-            // No cached UdpTx is treated as an existing but outdated one
-            Err(TxError::InvalidTx)
-        }
+        self.tx_cache.get_mut(&dst).and_then(|udp_tx| udp_tx.send(buf))
     }
 }

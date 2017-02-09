@@ -1,9 +1,9 @@
 use {RxResult, RxError};
-use ethernet::EthernetListener;
+use ethernet::{EthernetListener, EtherType, EtherTypes};
 
 use pnet::packet::Packet;
 use pnet::packet::arp::{ArpPacket, ArpOperations};
-use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
+use pnet::packet::ethernet::EthernetPacket;
 use stack::StackInterfaceMsg;
 
 use std::mem::drop;
@@ -23,6 +23,10 @@ impl ArpRx {
         let sender_mac = arp_pkg.get_sender_hw_addr();
         let sender_ip = arp_pkg.get_sender_proto_addr();
         let target_ip = arp_pkg.get_target_proto_addr();
+        debug!("Arp request. {}({}) asking for {}",
+               sender_ip,
+               sender_mac,
+               target_ip);
         drop(self.listener.send(StackInterfaceMsg::ArpRequest(sender_ip, sender_mac, target_ip)));
         Ok(())
     }

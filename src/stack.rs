@@ -1,23 +1,24 @@
-use ::{EthernetChannel, Interface, RoutingTable, TxError, TxResult, Tx, Payload};
+use {EthernetChannel, Interface, TxError, TxResult, Tx, Payload};
 use StackError;
-use ::arp::{self, ArpRequestTx, ArpReplyTx, ArpTable};
-use ::ethernet::{EthernetRx, EthernetTxImpl};
-use ::icmp::{self, IcmpTx};
+use arp::{self, ArpPayload, ArpTx, ArpTable, ArpRx};
+use ethernet::{EthernetRx, EthernetTx, MacAddr, EthernetListener};
+use icmp::{IcmpTx, IcmpType, IcmpRx, IcmpListener, IcmpListenerLookup};
 
 use ipnetwork::Ipv4Network;
-use ::ipv4::{self, Ipv4TxImpl};
+
+use ipv4::{Ipv4Tx, Ipv4Rx, IpNextHeaderProtocols, Ipv4Listener, IpListenerLookup};
 
 use pnet::datalink::EthernetDataLinkSender;
 use pnet::packet::MutablePacket;
 use pnet::packet::ethernet::MutableEthernetPacket;
-use pnet::packet::icmp::IcmpType;
-use pnet::packet::ip::IpNextHeaderProtocols;
-use pnet::util::MacAddr;
 
 use rand;
 use rand::distributions::{IndependentSample, Range};
+
+use routing::{RoutingTable, StackRoutingTable};
 use rx;
 
+use std::cmp;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
 use std::io;
@@ -29,6 +30,7 @@ use udp::{self, UdpTx};
 use util;
 
 pub static DEFAULT_MTU: usize = 1500;
+pub static DEFAULT_BUFFER_SIZE: usize = 1024 * 128;
 pub static LOCAL_PORT_RANGE_START: u16 = 32768;
 pub static LOCAL_PORT_RANGE_END: u16 = 61000;
 
@@ -52,20 +54,24 @@ impl StackInterfaceData {
         DatalinkTx::new(self.tx.clone(), version)
     }
 
-    pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTxImpl<DatalinkTx> {
-        EthernetTxImpl::new(self.tx(), self.interface.mac, dst)
+    fn ethernet_tx(&self, dst: MacAddr) -> EthernetTx<DatalinkTx> {
+        EthernetTx::new(self.interface.mac, dst, self.tx())
     }
 
-    pub fn arp_request_tx(&self) -> ArpRequestTx<EthernetTxImpl<DatalinkTx>> {
-        let dst_mac = MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
-        ArpRequestTx::new(self.ethernet_tx(dst_mac))
+    fn arp_request_tx(&self) -> ArpTx<EthernetTx<DatalinkTx>> {
+        let dst = MacAddr(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
+        ArpTx::new(self.ethernet_tx(dst))
     }
 
-    pub fn arp_reply_tx(&self) -> ArpReplyTx<EthernetTxImpl<DatalinkTx>> {
-        let dst_mac = MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
-        ArpReplyTx::new(self.ethernet_tx(dst_mac))
+    fn arp_tx(&self, dst: MacAddr) -> ArpTx<EthernetTx<DatalinkTx>> {
+        ArpTx::new(self.ethernet_tx(dst))
+    }
+
+    fn inc(&self) {
+        self.tx.lock().unwrap().inc();
     }
 }
+
 
 struct StackInterfaceThread {
     queue: Receiver<StackInterfaceMsg>,
@@ -95,9 +101,7 @@ impl StackInterfaceThread {
             data: data,
             arp_table: arp_table,
         };
-        let thread_handle = thread::spawn(move || {
-            stack_interface_thread.run();
-        });
+        let thread_handle = thread::spawn(move || { stack_interface_thread.run(); });
         StackInterfaceThreadHandle {
             handle: Some(thread_handle),
             tx: thread_tx,
@@ -127,7 +131,7 @@ impl StackInterfaceThread {
 
     fn update_arp(&mut self, ip: Ipv4Addr, mac: MacAddr) {
         if self.arp_table.insert(ip, mac) {
-            self.data.tx.lock().unwrap().inc();
+            self.data.inc();
         }
     }
 
@@ -135,10 +139,14 @@ impl StackInterfaceThread {
                           sender_ip: Ipv4Addr,
                           sender_mac: MacAddr,
                           target_ip: Ipv4Addr) {
-        let ipv4_addresses = self.data.ipv4_addresses.read().unwrap();
-        if ipv4_addresses.contains(&target_ip) {
-            debug!("Incoming Arp request for me!! {}", target_ip);
-            tx_send!(|| self.data.arp_reply_tx(); target_ip, sender_mac, sender_ip).unwrap_or(());
+        let has_target_ip = self.data.ipv4_addresses.read().unwrap().contains(&target_ip);
+        if has_target_ip {
+            debug!("Incoming Arp request for my IP {}", target_ip);
+            let mut payload =
+                ArpPayload::reply(self.data.interface.mac, target_ip, sender_mac, sender_ip);
+            if let Err(e) = tx_send!(|| self.data.arp_tx(sender_mac); &mut payload) {
+                error!("Unable to send arp response to {}: {}", sender_ip, e);
+            }
         }
     }
 }
@@ -146,7 +154,7 @@ impl StackInterfaceThread {
 struct Ipv4Data {
     net: Ipv4Network,
     udp_listeners: Arc<Mutex<udp::UdpListenerLookup>>,
-    icmp_listeners: Arc<Mutex<icmp::IcmpListenerLookup>>,
+    icmp_listeners: Arc<Mutex<IcmpListenerLookup>>,
 }
 
 /// Represents the stack on one physical interface.
@@ -157,16 +165,14 @@ pub struct StackInterface {
     _thread_handle: StackInterfaceThreadHandle,
     arp_table: ArpTable,
     ipv4_datas: HashMap<Ipv4Addr, Ipv4Data>,
-    ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
+    ipv4_listeners: Arc<Mutex<IpListenerLookup>>,
 }
 
 impl StackInterface {
     pub fn new(interface: Interface, channel: EthernetChannel) -> StackInterface {
-        let EthernetChannel(sender, receiver) = channel;
-
         let stack_interface_data = Arc::new(StackInterfaceData {
             interface: interface,
-            tx: Arc::new(Mutex::new(TxBarrier::new(sender))),
+            tx: Arc::new(Mutex::new(TxBarrier::new(channel.sender, channel.write_buffer_size))),
             ipv4_addresses: RwLock::new(HashSet::new()),
         });
 
@@ -175,14 +181,14 @@ impl StackInterface {
         let thread_handle = StackInterfaceThread::spawn(stack_interface_data.clone(),
                                                         arp_table.clone());
 
-        let arp_rx = arp_table.arp_rx(thread_handle.tx.clone());
+        let arp_rx = Box::new(ArpRx::new(thread_handle.tx.clone())) as Box<EthernetListener>;
 
         let ipv4_listeners = Arc::new(Mutex::new(HashMap::new()));
-        let ipv4_rx = ipv4::Ipv4Rx::new(ipv4_listeners.clone());
+        let ipv4_rx = Ipv4Rx::new(ipv4_listeners.clone());
 
         let ethernet_listeners = vec![arp_rx, ipv4_rx];
         let ethernet_rx = EthernetRx::new(ethernet_listeners);
-        rx::spawn(receiver, ethernet_rx);
+        rx::spawn(channel.receiver, ethernet_rx);
 
         StackInterface {
             data: stack_interface_data,
@@ -198,12 +204,16 @@ impl StackInterface {
         &self.data.interface
     }
 
-    pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTxImpl<DatalinkTx> {
+    pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTx<DatalinkTx> {
         self.data.ethernet_tx(dst)
     }
 
-    pub fn arp_request_tx(&self) -> ArpRequestTx<EthernetTxImpl<DatalinkTx>> {
+    pub fn arp_request_tx(&self) -> ArpTx<EthernetTx<DatalinkTx>> {
         self.data.arp_request_tx()
+    }
+
+    pub fn arp_tx(&self, dst: MacAddr) -> ArpTx<EthernetTx<DatalinkTx>> {
+        self.data.arp_tx(dst)
     }
 
     pub fn arp_table(&mut self) -> &mut arp::ArpTable {
@@ -219,12 +229,12 @@ impl StackInterface {
 
                 let udp_listeners = Arc::new(Mutex::new(HashMap::new()));
                 let udp_rx = udp::UdpRx::new(udp_listeners.clone());
-                let udp_ipv4_listener = Box::new(udp_rx) as Box<ipv4::Ipv4Listener>;
+                let udp_ipv4_listener = Box::new(udp_rx) as Box<Ipv4Listener>;
                 proto_listeners.insert(IpNextHeaderProtocols::Udp, udp_ipv4_listener);
 
                 let icmp_listeners = Arc::new(Mutex::new(HashMap::new()));
-                let icmp_rx = icmp::IcmpRx::new(icmp_listeners.clone());
-                let icmp_listener = Box::new(icmp_rx) as Box<ipv4::Ipv4Listener>;
+                let icmp_rx = IcmpRx::new(icmp_listeners.clone());
+                let icmp_listener = Box::new(icmp_rx) as Box<Ipv4Listener>;
                 proto_listeners.insert(IpNextHeaderProtocols::Icmp, icmp_listener);
                 {
                     let mut ipv4_listeners = self.ipv4_listeners.lock().unwrap();
@@ -246,18 +256,20 @@ impl StackInterface {
     pub fn ipv4_tx(&mut self,
                    dst: Ipv4Addr,
                    gw: Option<Ipv4Addr>)
-                   -> StackResult<Ipv4TxImpl<EthernetTxImpl<DatalinkTx>>> {
+                   -> StackResult<Ipv4Tx<EthernetTx<DatalinkTx>>> {
         let local_dst = gw.unwrap_or(dst);
         if let Some(src) = self.closest_local_ip(local_dst) {
             let dst_mac = match self.arp_table.get(local_dst) {
                 Ok(mac) => mac,
                 Err(rx) => {
-                    tx_send!(|| self.arp_request_tx(); src, local_dst)?;
+                    let src_mac = self.data.interface.mac;
+                    let mut arp_request = arp::ArpPayload::request(src_mac, src, local_dst);
+                    tx_send!(|| self.arp_request_tx(); &mut arp_request)?;
                     rx.recv().unwrap()
                 }
             };
             let ethernet_tx = self.ethernet_tx(dst_mac);
-            Ok(Ipv4TxImpl::new(ethernet_tx, src, dst, self.mtu))
+            Ok(Ipv4Tx::new(ethernet_tx, src, dst, self.mtu))
         } else {
             Err(StackError::IllegalArgument)
         }
@@ -268,7 +280,7 @@ impl StackInterface {
                           icmp_type: IcmpType,
                           listener: L)
                           -> io::Result<()>
-        where L: icmp::IcmpListener + 'static
+        where L: IcmpListener + 'static
     {
         if let Some(ip_data) = self.ipv4_datas.get(&local_ip) {
             let mut icmp_listeners = ip_data.icmp_listeners.lock().unwrap();
@@ -286,7 +298,11 @@ impl StackInterface {
 
     pub fn set_mtu(&mut self, mtu: usize) {
         self.mtu = mtu;
-        self.data.tx.lock().unwrap().inc();
+        self.data.inc();
+    }
+
+    fn inc(&self) {
+        self.data.inc();
     }
 
     /// Finds which local IP is suitable as src ip for packets sent to `dst`.
@@ -303,7 +319,7 @@ impl StackInterface {
 
 impl Drop for StackInterface {
     fn drop(&mut self) {
-        self.data.tx.lock().unwrap().inc();
+        self.data.inc();
     }
 }
 
@@ -358,8 +374,12 @@ impl NetworkStack {
         Err(StackError::InvalidInterface)
     }
 
-    pub fn routing_table(&mut self) -> &mut RoutingTable {
-        &mut self.routing_table
+    pub fn routing_table(&mut self) -> StackRoutingTable {
+        let interfaces = &mut self.interfaces;
+        let callback = move || for interface in interfaces.values() {
+            interface.inc();
+        };
+        StackRoutingTable::new(&mut self.routing_table, Box::new(callback))
     }
 
     /// Attach an IPv4 network to an interface.
@@ -370,9 +390,7 @@ impl NetworkStack {
         Ok(())
     }
 
-    pub fn ipv4_tx(&mut self,
-                   dst: Ipv4Addr)
-                   -> StackResult<Ipv4TxImpl<EthernetTxImpl<DatalinkTx>>> {
+    pub fn ipv4_tx(&mut self, dst: Ipv4Addr) -> StackResult<Ipv4Tx<EthernetTx<DatalinkTx>>> {
         if let Some((gw, interface)) = self.routing_table.route(dst) {
             if let Some(stack_interface) = self.interfaces.get_mut(&interface) {
                 stack_interface.ipv4_tx(dst, gw)
@@ -385,10 +403,10 @@ impl NetworkStack {
     }
 
     pub fn icmp_tx(&mut self,
-                   dst_ip: Ipv4Addr)
-                   -> StackResult<IcmpTx<Ipv4TxImpl<EthernetTxImpl<DatalinkTx>>>> {
-        let ipv4_tx = self.ipv4_tx(dst_ip)?;
-        Ok(icmp::IcmpTx::new(ipv4_tx))
+                   dst: Ipv4Addr)
+                   -> StackResult<IcmpTx<Ipv4Tx<EthernetTx<DatalinkTx>>>> {
+        let ipv4_tx = self.ipv4_tx(dst)?;
+        Ok(IcmpTx::new(ipv4_tx))
     }
 
     pub fn icmp_listen<L>(&mut self,
@@ -396,10 +414,12 @@ impl NetworkStack {
                           icmp_type: IcmpType,
                           listener: L)
                           -> io::Result<()>
-        where L: icmp::IcmpListener + 'static + Clone
+        where L: IcmpListener + 'static + Clone
     {
         if local_ip == Ipv4Addr::new(0, 0, 0, 0) {
-            let msg = "Rips does not support listening to all interfaces yet".to_owned();
+            let msg = "Rips does not support listening to all interfaces
+    yet"
+                .to_owned();
             Err(io::Error::new(io::ErrorKind::InvalidInput, msg))
         } else {
             let mut added_to_interface = false;
@@ -418,11 +438,13 @@ impl NetworkStack {
 
     pub fn udp_tx(&mut self,
                   dst_ip: Ipv4Addr,
-                  src: u16,
+                  src_port: u16,
                   dst_port: u16)
-                  -> StackResult<UdpTx<Ipv4TxImpl<EthernetTxImpl<DatalinkTx>>>> {
+                  -> StackResult<UdpTx<Ipv4Tx<EthernetTx<DatalinkTx>>>> {
         let ipv4_tx = self.ipv4_tx(dst_ip)?;
-        Ok(udp::UdpTx::new(ipv4_tx, src, dst_port))
+        let src = SocketAddrV4::new(ipv4_tx.src(), src_port);
+        let dst = SocketAddrV4::new(dst_ip, dst_port);
+        Ok(udp::UdpTx::new(ipv4_tx, src, dst))
     }
 
     pub fn udp_listen<A, L>(&mut self, addr: A, listener: L) -> io::Result<SocketAddr>
@@ -444,7 +466,9 @@ impl NetworkStack {
         let local_ip = addr.ip();
         let mut local_port = addr.port();
         if local_ip == &Ipv4Addr::new(0, 0, 0, 0) {
-            let msg = "Rips does not support listening to all interfaces yet".to_owned();
+            let msg = "Rips does not support listening to all interfaces
+    yet"
+                .to_owned();
             Err(io::Error::new(io::ErrorKind::AddrNotAvailable, msg))
         } else {
             for stack_interface in self.interfaces.values() {
@@ -483,6 +507,7 @@ impl NetworkStack {
     }
 }
 
+#[derive(Clone)]
 pub struct DatalinkTx {
     tx: Arc<Mutex<TxBarrier>>,
     version: u64,
@@ -497,26 +522,30 @@ impl DatalinkTx {
     }
 }
 
-impl Tx for DatalinkTx {
-    fn send<P: Payload>(&mut self, num_packets: usize, packet_size: usize, payload: P) -> TxResult {
-        let mut tx = self.tx.lock().unwrap();
+impl Tx<()> for DatalinkTx {
+    fn send<'p, P>(&mut self, payload: &'p mut P) -> Option<TxResult<()>>
+        where P: Payload<()>
+    {
+        let mut tx = self.tx.lock().expect("Poisoned lock in stack. This is a Rips bug");
         if self.version != tx.version() {
-            Err(TxError::InvalidTx)
+            None
         } else {
-            tx.send(num_packets, packet_size, payload)
+            Some(tx.send(payload))
         }
     }
 }
 
 pub struct TxBarrier {
     tx: Box<EthernetDataLinkSender>,
+    cache_size: usize,
     version: u64,
 }
 
 impl TxBarrier {
-    pub fn new(tx: Box<EthernetDataLinkSender>) -> TxBarrier {
+    pub fn new(tx: Box<EthernetDataLinkSender>, cache_size: usize) -> TxBarrier {
         TxBarrier {
             tx: tx,
+            cache_size: cache_size,
             version: 0,
         }
     }
@@ -532,29 +561,52 @@ impl TxBarrier {
         self.version
     }
 
-    fn io_result_to_tx_result(&self, r: Option<io::Result<()>>) -> TxResult {
-        match r {
-            None => Err(TxError::Other("Insufficient buffer space".to_owned())),
-            Some(ior) => {
-                match ior {
-                    Err(e) => Err(TxError::from(e)),
-                    Ok(()) => Ok(()),
-                }
-            }
+    fn send<'p, P>(&mut self, payload: &'p mut P) -> TxResult<()>
+        where P: Payload<()>
+    {
+        let mut packets_left = payload.num_packets();
+        let packet_size = payload.packet_size();
+        let max_packets_per_call = self.cache_size / packet_size;
+        if max_packets_per_call == 0 {
+            return Err(TxError::TooLargePayload);
         }
+        let mut ethernet_payload =
+            |mut packet: MutableEthernetPacket| { payload.build(packet.packet_mut()); };
+        while packets_left > 0 {
+            let num_packets = cmp::min(packets_left, max_packets_per_call);
+            self.tx
+                .build_and_send(num_packets, packet_size, &mut ethernet_payload)
+                .expect("Insufficient buffer space")?;
+            packets_left -= num_packets;
+        }
+        Ok(())
     }
 }
 
-impl Tx for TxBarrier {
-    fn send<P: Payload>(&mut self,
-                        num_packets: usize,
-                        packet_size: usize,
-                        mut payload: P)
-                        -> TxResult {
-        let mut eth_payload = |mut packet: MutableEthernetPacket| {
-            payload.build(packet.packet_mut());
-        };
-        let result = self.tx.build_and_send(num_packets, packet_size, &mut eth_payload);
-        self.io_result_to_tx_result(result)
+/// Create a default stack managing all interfaces given by
+/// `pnet::datalink::interfaces()`.
+pub fn default_stack() -> StackResult<NetworkStack> {
+    use pnet::datalink;
+    let mut stack = NetworkStack::new();
+    for interface in datalink::interfaces() {
+        if let Ok(rips_interface) = Interface::try_from(&interface) {
+            let mut config = datalink::Config::default();
+            config.write_buffer_size = DEFAULT_BUFFER_SIZE;
+            config.read_buffer_size = DEFAULT_BUFFER_SIZE;
+            let channel = match try!(datalink::channel(&interface, config)
+                .map_err(StackError::from)) {
+                datalink::Channel::Ethernet(tx, rx) => {
+                    EthernetChannel {
+                        sender: tx,
+                        write_buffer_size: config.write_buffer_size,
+                        receiver: rx,
+                        read_buffer_size: config.read_buffer_size,
+                    }
+                }
+                _ => unreachable!(),
+            };
+            try!(stack.add_interface(rips_interface, channel));
+        }
     }
+    Ok(stack)
 }
