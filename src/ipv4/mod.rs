@@ -1,4 +1,5 @@
 pub use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+pub use ipnetwork::Ipv4Network;
 
 mod ipv4_rx;
 mod ipv4_tx;
