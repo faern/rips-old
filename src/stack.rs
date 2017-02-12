@@ -8,6 +8,7 @@ use ipnetwork::Ipv4Network;
 
 use ipv4::{Ipv4Tx, Ipv4Rx, IpNextHeaderProtocols, Ipv4Listener, IpListenerLookup};
 
+use pnet;
 use pnet::datalink::EthernetDataLinkSender;
 use pnet::packet::MutablePacket;
 use pnet::packet::ethernet::MutableEthernetPacket;
@@ -586,16 +587,12 @@ impl TxBarrier {
 /// Create a default stack managing all interfaces given by
 /// `pnet::datalink::interfaces()`.
 pub fn default_stack() -> StackResult<NetworkStack> {
-    use pnet::datalink;
     let mut stack = NetworkStack::new();
-    for interface in datalink::interfaces() {
+    for interface in pnet::datalink::interfaces() {
         if let Ok(rips_interface) = Interface::try_from(&interface) {
-            let mut config = datalink::Config::default();
-            config.write_buffer_size = DEFAULT_BUFFER_SIZE;
-            config.read_buffer_size = DEFAULT_BUFFER_SIZE;
-            let channel = match try!(datalink::channel(&interface, config)
-                .map_err(StackError::from)) {
-                datalink::Channel::Ethernet(tx, rx) => {
+            let config = create_default_config();
+            let channel = match pnet::datalink::channel(&interface, config)? {
+                pnet::datalink::Channel::Ethernet(tx, rx) => {
                     EthernetChannel {
                         sender: tx,
                         write_buffer_size: config.write_buffer_size,
@@ -609,4 +606,11 @@ pub fn default_stack() -> StackResult<NetworkStack> {
         }
     }
     Ok(stack)
+}
+
+fn create_default_config() -> pnet::datalink::Config {
+    let mut config = pnet::datalink::Config::default();
+    config.write_buffer_size = DEFAULT_BUFFER_SIZE;
+    config.read_buffer_size = DEFAULT_BUFFER_SIZE;
+    config
 }
