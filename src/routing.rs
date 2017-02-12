@@ -41,6 +41,11 @@ impl RoutingTable {
         self.table.entry(prefix).or_insert_with(Vec::new).push(entry);
     }
 
+    pub fn add_default_route(&mut self, gw: Option<Ipv4Addr>, interface: Interface) {
+        let net = Ipv4Network::new(Ipv4Addr::new(0,0,0,0), 0).unwrap();
+        self.add_route(net, gw, interface);
+    }
+
     pub fn route(&self, ip: Ipv4Addr) -> Option<(Option<Ipv4Addr>, Interface)> {
         for (_prefix, entries) in self.table.iter().rev() {
             for entry in entries {
@@ -76,6 +81,11 @@ impl<'a> StackRoutingTable<'a> {
 
     pub fn add_route(&mut self, net: Ipv4Network, gw: Option<Ipv4Addr>, interface: Interface) {
         self.table.add_route(net, gw, interface);
+        (self.change_callback)();
+    }
+
+    pub fn add_default_route(&mut self, gw: Option<Ipv4Addr>, interface: Interface) {
+        self.table.add_default_route(gw, interface);
         (self.change_callback)();
     }
 
